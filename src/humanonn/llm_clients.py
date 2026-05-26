@@ -49,7 +49,7 @@ class ModelRouter:
                 attempts.append({"bug_tag": candidate.bug_tag, "status": "failed", "reason": str(exc).splitlines()[0]})
         raise RuntimeError(f"No provider succeeded for task {task}: {attempts}")
 
-    def embed_texts(self, texts: list[str]) -> tuple[list[list[float]], ModelCandidate, list[dict[str, str]]]:
+    def embed_texts(self, texts: list[str], labels: list[str] | None = None) -> tuple[dict[str, Any], ModelCandidate, list[dict[str, str]]]:
         attempts: list[dict[str, str]] = []
         for candidate in route_for("embeddings"):
             api_key = self.settings.api_key_for(candidate.provider)
@@ -59,11 +59,18 @@ class ModelRouter:
             try:
                 if candidate.provider == "jina":
                     vectors = self._call_jina_embeddings(candidate, texts)
+                    result = {"mode": "vectors", "vectors": vectors}
+                elif candidate.provider == "groq":
+                    if not labels:
+                        attempts.append({"bug_tag": candidate.bug_tag, "status": "skipped", "reason": "missing_labels"})
+                        continue
+                    similarities = self._call_groq_similarity(candidate, texts[0], texts[1:], labels)
+                    result = {"mode": "similarities", "similarities": similarities}
                 else:
                     attempts.append({"bug_tag": candidate.bug_tag, "status": "skipped", "reason": "provider_not_supported"})
                     continue
                 attempts.append({"bug_tag": candidate.bug_tag, "status": "ok", "reason": "success"})
-                return vectors, candidate, attempts
+                return result, candidate, attempts
             except Exception as exc:
                 attempts.append({"bug_tag": candidate.bug_tag, "status": "failed", "reason": str(exc).splitlines()[0]})
         raise RuntimeError(f"No embedding provider succeeded: {attempts}")
@@ -204,6 +211,39 @@ class ModelRouter:
             body = json.loads(response.read().decode("utf-8"))
         data = sorted(body["data"], key=lambda item: item["index"])
         return [item["embedding"] for item in data]
+
+    def _call_groq_similarity(
+        self,
+        candidate: ModelCandidate,
+        site_signature: str,
+        archetypes: list[str],
+        labels: list[str],
+    ) -> list[dict[str, Any]]:
+        client = Groq(api_key=self.settings.api_key_for("groq"))
+        payload = {
+            "site_signature": site_signature,
+            "archetypes": [{"label": label, "text": text} for label, text in zip(labels, archetypes)],
+        }
+        prompt = (
+            "You score semantic similarity between one website signature and several archetype descriptions. "
+            "Return JSON only in this shape: "
+            "{\"similarities\":[{\"label\":\"name\",\"score\":0.0,\"reason\":\"short reason\"}]} . "
+            "Score must be between 0 and 1."
+        )
+        response = client.chat.completions.create(
+            model=candidate.model,
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=True)},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+        )
+        content = response.choices[0].message.content or "{}"
+        parsed = _coerce_json(content)
+        similarities = parsed.get("similarities", [])
+        similarities.sort(key=lambda item: item.get("score", 0), reverse=True)
+        return similarities
 
 
 def _coerce_json(value: Any) -> dict[str, Any]:

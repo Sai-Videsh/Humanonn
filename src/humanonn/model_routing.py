@@ -54,10 +54,10 @@ MODEL_ROUTES: dict[ModelTask, list[ModelCandidate]] = {
         ModelCandidate("embeddings", "jina", "jina-embeddings-v3", "primary", "MODEL_EMBED_JINA_V3"),
         ModelCandidate("embeddings", "mixedbread", "mxbai-embed-large", "direct_fallback", "MODEL_EMBED_MIXEDBREAD_LARGE"),
         ModelCandidate("embeddings", "voyage", "voyage-lite", "direct_fallback", "MODEL_EMBED_VOYAGE_LITE"),
+        ModelCandidate("embeddings", "groq", "llama-3.1-8b-instant", "last_fallback", "MODEL_EMBED_GROQ_SIMILARITY"),
     ],
 }
 
 
 def route_for(task: ModelTask) -> list[ModelCandidate]:
     return MODEL_ROUTES[task]
-

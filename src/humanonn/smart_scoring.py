@@ -151,14 +151,22 @@ def _run_embeddings(
 ) -> tuple[dict[str, Any], Any, list[dict[str, str]]]:
     signature = evidence_pack["site_signature"]
     texts = [signature, *ARCHETYPES.values()]
-    vectors, candidate, attempts = router.embed_texts(texts)
-    source = vectors[0]
     labels = list(ARCHETYPES.keys())
-    similarities = []
-    for label, vector in zip(labels, vectors[1:]):
-        similarities.append({"label": label, "score": round(_cosine_similarity(source, vector), 4)})
-    similarities.sort(key=lambda item: item["score"], reverse=True)
-    result = {"site_signature": signature, "similarities": similarities}
+    embedding_payload, candidate, attempts = router.embed_texts(texts, labels=labels)
+    if embedding_payload.get("mode") == "vectors":
+        vectors = embedding_payload["vectors"]
+        source = vectors[0]
+        similarities = []
+        for label, vector in zip(labels, vectors[1:]):
+            similarities.append({"label": label, "score": round(_cosine_similarity(source, vector), 4)})
+        similarities.sort(key=lambda item: item["score"], reverse=True)
+        result = {"site_signature": signature, "mode": "vectors", "similarities": similarities}
+    else:
+        result = {
+            "site_signature": signature,
+            "mode": embedding_payload.get("mode", "similarities"),
+            "similarities": embedding_payload.get("similarities", []),
+        }
     return result, candidate, attempts
 
 

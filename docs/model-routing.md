@@ -13,7 +13,7 @@ add clear value.
 | Fast ambiguity checking | Groq Llama 3.1 8B Instant | Groq Gemma 2 9B | OpenRouter Phi-3 Medium | `MODEL_FAST_*` |
 | CSS / Tailwind / fix generation | DeepSeek V3 | Qwen2.5 Coder 32B via OpenRouter | Groq Llama 3.3 70B | `MODEL_FIX_*` |
 | Structured JSON / classification | Groq Llama 3.3 70B | Google Gemini 2.5 Flash | OpenRouter Qwen 3 32B | `MODEL_JSON_*` |
-| Embeddings / similarity | Jina embeddings v3 | Mixedbread mxbai-embed-large | Voyage lite | `MODEL_EMBED_*` |
+| Embeddings / similarity | Jina embeddings v3 | Mixedbread mxbai-embed-large, Voyage lite | Groq Llama 3.1 8B similarity fallback | `MODEL_EMBED_*` |
 
 ## Cost Discipline
 
@@ -36,4 +36,3 @@ add clear value.
 - Fix generation should receive only flagged findings and framework context.
 - Embeddings should be used for similarity against known site archetypes and
   repeated copy/layout patterns, not for the primary scan loop.
-
