@@ -1,0 +1,2 @@
+[console_scripts]
+humanonn = humanonn.cli:main

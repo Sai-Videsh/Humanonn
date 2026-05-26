@@ -1,0 +1,61 @@
+Metadata-Version: 2.4
+Name: humanonn
+Version: 0.1.0
+Summary: CLI-first website quality auditor for vibe-coded design patterns.
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: groq>=0.9.0
+Requires-Dist: playwright>=1.44.0
+Requires-Dist: pydantic>=2.7.0
+
+# Humanonn
+
+Humanonn is a CLI-first AI agent project that audits deployed websites for design and UX patterns commonly found in AI-generated or "vibe-coded" sites.
+
+Stage 1 builds the full project skeleton and a usable deterministic scanner:
+
+- Accepts a deployed URL from the command line
+- Crawls the homepage with Playwright
+- Extracts rendered styles, copy, structure, accessibility hints, and a screenshot
+- Runs the 50-signal rule engine scaffolding
+- Computes Vibe Score and Humanness Score
+- Routes through configured model providers, with Groq as the primary low-cost inference layer
+
+## Setup
+
+```bash
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .
+python -m playwright install chromium
+```
+
+Configure providers in `.env`:
+
+```bash
+copy .env.example .env
+```
+
+Model routing and fallback policy lives in [docs/model-routing.md](docs/model-routing.md).
+
+## Run
+
+```bash
+python -m humanonn scan https://example.com
+```
+
+Save JSON:
+
+```bash
+python -m humanonn scan https://example.com --json reports/example.json
+```
+
+Skip the LLM orchestrator even when a Groq key is configured:
+
+```bash
+python -m humanonn scan https://example.com --no-llm
+```
+
+## Project Stages
+
+See [docs/stages.md](docs/stages.md).
