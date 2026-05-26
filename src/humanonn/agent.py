@@ -8,6 +8,9 @@ from groq import Groq
 
 from humanonn.config import Settings
 from humanonn.models import AuditReport
+from humanonn.llm_clients import ModelRouter
+from humanonn.runtime import terminal_log
+from humanonn.smart_scoring import run_smart_scoring
 from humanonn.tools.registry import ToolRegistry
 from humanonn.tools.schemas import TOOL_DEFINITIONS
 
@@ -19,6 +22,7 @@ class HumanonnAgent:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.registry = ToolRegistry(settings)
+        self.router = ModelRouter(settings)
 
     def scan(self, url: str, use_llm: bool = True) -> AuditReport:
         if use_llm and self.settings.llm_enabled:
@@ -59,6 +63,10 @@ class HumanonnAgent:
             message = response.choices[0].message
             tool_calls = getattr(message, "tool_calls", None)
             if not tool_calls:
+                if self.registry.snapshot is not None:
+                    report = self._finalize_smart_report()
+                    report.agent_notes.append(f"{candidate.bug_tag} completed without another tool call.")
+                    return report
                 if self.registry.report is not None:
                     self.registry.report.agent_notes.append(f"{candidate.bug_tag} completed without another tool call.")
                     return self.registry.report
@@ -76,8 +84,16 @@ class HumanonnAgent:
                     }
                 )
                 if tool_call.function.name == "generate_report":
-                    return self.registry.report or self.registry.generate_report()
+                    return self._finalize_smart_report()
 
-        report = self.registry.generate_report()
+        report = self._finalize_smart_report()
         report.agent_notes.append(f"{candidate.bug_tag} reached max agent iterations; finalized current findings.")
         return report
+
+    def _finalize_smart_report(self) -> AuditReport:
+        if self.registry.snapshot is None:
+            raise RuntimeError("LLM scoring requires a completed crawl snapshot.")
+        terminal_log("Building deterministic baseline before smart scoring", self.settings.terminal_logs)
+        base_report = self.registry.generate_report()
+        terminal_log("Running smart LLM scoring pipeline", self.settings.terminal_logs)
+        return run_smart_scoring(self.registry.snapshot, base_report, self.router)
