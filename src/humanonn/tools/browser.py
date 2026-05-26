@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import Locator
 from playwright.sync_api import Page
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
 from humanonn.config import Settings
@@ -16,9 +19,15 @@ from humanonn.runtime import terminal_log
 
 def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
     screenshot_path = _screenshot_path(url, settings.screenshot_dir)
+    artifact_root = _artifact_root(url, settings)
+    manifest_path = artifact_root / "manifest.json"
+    main_image_path = artifact_root / "main.png"
     screenshot_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_root.mkdir(parents=True, exist_ok=True)
+
     terminal_log(f"Starting crawl for {url}", settings.terminal_logs)
-    terminal_log(f"Screenshot target: {screenshot_path}", settings.terminal_logs)
+    terminal_log(f"Main screenshot target: {main_image_path}", settings.terminal_logs)
+    terminal_log(f"Legacy screenshot target: {screenshot_path}", settings.terminal_logs)
 
     try:
         with sync_playwright() as p:
@@ -26,14 +35,38 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
             browser = p.chromium.launch(headless=settings.headless)
             page = browser.new_page(viewport={"width": 1440, "height": 1200})
             _attach_page_logs(page, settings)
-            terminal_log("Navigating to page and waiting for network idle", settings.terminal_logs)
-            page.goto(url, wait_until="networkidle", timeout=settings.timeout_ms)
+
+            terminal_log("Navigating to page with staged readiness checks", settings.terminal_logs)
+            _navigate_page(page, url, settings)
+            _settle_page(page, settings, "post-navigation")
             terminal_log(f"Navigation complete: {page.url}", settings.terminal_logs)
-            _explore_page(page, settings)
+
+            sections = _discover_sections(page, settings)
+            _overview_scroll_sections(page, sections, settings)
+
+            page.evaluate("window.scrollTo(0, 0)")
+            _settle_page(page, settings, "before-main-screenshot")
+            page.screenshot(path=str(main_image_path), full_page=True)
             page.screenshot(path=str(screenshot_path), full_page=True)
-            terminal_log("Saved full-page screenshot", settings.terminal_logs)
+            terminal_log("Saved main page overview screenshots", settings.terminal_logs)
+
+            manifest = _capture_section_artifacts(page, sections, artifact_root, settings)
+            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            terminal_log(f"Artifact manifest written to {manifest_path}", settings.terminal_logs)
+
+            page.evaluate("window.scrollTo(0, 0)")
+            _settle_page(page, settings, "before-snapshot")
             terminal_log("Extracting computed styles, structure, and content snapshot", settings.terminal_logs)
             data = page.evaluate(_SNAPSHOT_SCRIPT)
+            data.setdefault("raw", {})
+            data["raw"].update(
+                {
+                    "artifact_root": str(artifact_root),
+                    "manifest_path": str(manifest_path),
+                    "main_image_path": str(main_image_path),
+                    "section_artifact_count": len(manifest.get("sections", [])),
+                }
+            )
             _log_snapshot_summary(data, settings)
             browser.close()
             terminal_log("Closed Chromium session", settings.terminal_logs)
@@ -48,7 +81,7 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
     return AuditSnapshot(
         url=url,
         title=data.get("title", ""),
-        screenshot_path=str(screenshot_path),
+        screenshot_path=str(main_image_path),
         colors=data.get("colors", {}),
         fonts=data.get("fonts", []),
         body=data.get("body", {}),
@@ -97,6 +130,7 @@ def check_accessibility(snapshot: AuditSnapshot) -> dict[str, Any]:
         ],
         "images": [{"src": item.get("src"), "alt": item.get("alt")} for item in snapshot.images],
         "titleAttributeCount": snapshot.raw.get("titleAttributeCount", 0),
+        "artifact_root": snapshot.raw.get("artifact_root"),
     }
 
 
@@ -114,7 +148,13 @@ def _screenshot_path(url: str, screenshot_dir: str) -> Path:
     return Path(screenshot_dir) / f"{digest}.png"
 
 
-def _attach_page_logs(page: Any, settings: Settings) -> None:
+def _artifact_root(url: str, settings: Settings) -> Path:
+    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:12]
+    report_root = Path(settings.screenshot_dir).parent
+    return report_root / "data" / digest
+
+
+def _attach_page_logs(page: Page, settings: Settings) -> None:
     if not settings.terminal_logs:
         return
     page.on("console", lambda msg: terminal_log(f"browser console [{msg.type}]: {msg.text}", settings.terminal_logs))
@@ -128,103 +168,381 @@ def _attach_page_logs(page: Any, settings: Settings) -> None:
     )
 
 
-def _explore_page(page: Page, settings: Settings) -> None:
-    terminal_log("Exploring page sections to trigger lazy rendering", settings.terminal_logs)
-    _scroll_through_sections(page, settings)
-    _sweep_full_page(page, settings)
-    terminal_log("Probing hover states on interactive elements", settings.terminal_logs)
-    _probe_hover_states(page, settings)
-    page.mouse.move(0, 0)
-    page.evaluate("window.scrollTo(0, 0)")
-    page.wait_for_timeout(200)
-    terminal_log("Exploration pass complete", settings.terminal_logs)
+def _navigate_page(page: Page, url: str, settings: Settings) -> None:
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=settings.navigation_timeout_ms)
+        terminal_log("Navigation reached DOMContentLoaded", settings.terminal_logs)
+    except PlaywrightTimeoutError as exc:
+        if _page_has_usable_dom(page):
+            terminal_log(
+                f"DOMContentLoaded timed out but usable DOM is present; continuing: {_summarize_error(exc)}",
+                settings.terminal_logs,
+            )
+        else:
+            raise RuntimeError(
+                f"Navigation timed out before the page produced usable DOM. Increase HUMANONN_NAVIGATION_TIMEOUT_MS if needed."
+            ) from exc
+
+    try:
+        page.wait_for_load_state("load", timeout=settings.navigation_timeout_ms)
+        terminal_log("Page reached load state", settings.terminal_logs)
+    except PlaywrightTimeoutError as exc:
+        terminal_log(f"Load state wait timed out; continuing with current DOM: {_summarize_error(exc)}", settings.terminal_logs)
+
+    try:
+        page.wait_for_load_state("networkidle", timeout=settings.networkidle_timeout_ms)
+        terminal_log("Page reached networkidle", settings.terminal_logs)
+    except PlaywrightTimeoutError as exc:
+        terminal_log(f"Network idle wait timed out; continuing with rendered page: {_summarize_error(exc)}", settings.terminal_logs)
+
+    try:
+        page.locator("body").wait_for(state="visible", timeout=min(settings.navigation_timeout_ms, 5000))
+    except PlaywrightTimeoutError as exc:
+        raise RuntimeError(f"Page body never became visible: {_summarize_error(exc)}") from exc
 
 
-def _scroll_through_sections(page: Page, settings: Settings) -> None:
-    selector = "main section, section, article, [data-section], footer, [class*='feature'], [class*='pricing'], [class*='testimonial']"
-    locator = page.locator(selector)
-    count = min(locator.count(), 120)
-    terminal_log(f"Section candidates found: {count}", settings.terminal_logs)
-    for index in range(count):
-        item = locator.nth(index)
-        try:
-            item.scroll_into_view_if_needed(timeout=2000)
-            item.evaluate("(el, i) => el.setAttribute('data-humanonn-scroll-index', String(i))", index)
-            terminal_log(f"Scrolled section {index + 1}/{count}", settings.terminal_logs)
-            page.wait_for_timeout(180)
-        except PlaywrightError as exc:
-            terminal_log(f"Skipped section {index + 1}: {exc}", settings.terminal_logs)
-
-
-def _sweep_full_page(page: Page, settings: Settings) -> None:
-    previous_height = 0
-    for pass_index in range(2):
-        metrics = page.evaluate(
-            """() => ({
-                viewport: window.innerHeight,
-                height: Math.max(
-                    document.body.scrollHeight,
-                    document.documentElement.scrollHeight
-                )
-            })"""
+def _page_has_usable_dom(page: Page) -> bool:
+    try:
+        return bool(
+            page.evaluate(
+                """() => {
+                    const body = document.body;
+                    if (!body) return false;
+                    const text = (body.innerText || body.textContent || "").trim();
+                    return document.readyState !== "loading" && (text.length > 40 || body.querySelector("main, section, article, nav, footer, img, button, a"));
+                }"""
+            )
         )
-        viewport = int(metrics["viewport"] or 800)
-        height = int(metrics["height"] or viewport)
-        terminal_log(f"Scroll sweep {pass_index + 1}: page height {height}px", settings.terminal_logs)
-        step = max(300, viewport - 160)
-        y = 0
-        while y < height:
-            page.evaluate("(value) => window.scrollTo(0, value)", y)
-            page.wait_for_timeout(140)
-            y += step
-        page.evaluate("(value) => window.scrollTo(0, value)", height)
-        page.wait_for_timeout(220)
-        if height <= previous_height:
+    except PlaywrightError:
+        return False
+
+
+def _discover_sections(page: Page, settings: Settings) -> list[dict[str, Any]]:
+    terminal_log("Discovering visible sections", settings.terminal_logs)
+    sections = page.evaluate(_DISCOVER_SECTIONS_SCRIPT)
+    terminal_log(f"Section candidates found: {len(sections)}", settings.terminal_logs)
+    for section in sections[:8]:
+        terminal_log(
+            f"Section {section['index'] + 1}: {section['label']} ({section['width']}x{section['height']})",
+            settings.terminal_logs,
+        )
+    return sections
+
+
+def _overview_scroll_sections(page: Page, sections: list[dict[str, Any]], settings: Settings) -> None:
+    terminal_log("Overview pass: scrolling section by section to trigger lazy rendering", settings.terminal_logs)
+    for section in sections:
+        locator = page.locator(f"[data-humanonn-section-id='{section['id']}']").first
+        try:
+            _scroll_locator_into_focus(page, locator, settings)
+            locator.evaluate("(el, index) => el.setAttribute('data-humanonn-scroll-index', String(index))", section["index"])
+            terminal_log(f"Overview section {section['index'] + 1}/{len(sections)}: {section['label']}", settings.terminal_logs)
+        except (PlaywrightError, RuntimeError) as exc:
+            terminal_log(f"Skipped overview section {section['index'] + 1}: {_summarize_error(exc)}", settings.terminal_logs)
+    page.evaluate("window.scrollTo(0, 0)")
+    _settle_page(page, settings, "after-overview")
+
+
+def _capture_section_artifacts(
+    page: Page,
+    sections: list[dict[str, Any]],
+    artifact_root: Path,
+    settings: Settings,
+) -> dict[str, Any]:
+    manifest: dict[str, Any] = {
+        "artifact_root": str(artifact_root),
+        "main_image_path": str(artifact_root / "main.png"),
+        "sections": [],
+    }
+    for section in sections:
+        section_dir = artifact_root / f"section_{section['index'] + 1:03d}_{_slugify(section['label'])}"
+        section_dir.mkdir(parents=True, exist_ok=True)
+        locator = page.locator(f"[data-humanonn-section-id='{section['id']}']").first
+        try:
+            _scroll_locator_into_focus(page, locator, settings)
+            section_image = section_dir / "section.png"
+            locator.screenshot(path=str(section_image))
+            terminal_log(
+                f"Capturing section {section['index'] + 1}/{len(sections)}: {section['label']}",
+                settings.terminal_logs,
+            )
+            components = _discover_components(page, section["id"], settings)
+            component_manifest = _capture_components(page, section, components, section_dir, settings)
+            manifest["sections"].append(
+                {
+                    **section,
+                    "section_image_path": str(section_image),
+                    "components": component_manifest,
+                }
+            )
+        except (PlaywrightError, RuntimeError) as exc:
+            terminal_log(f"Skipped section capture {section['index'] + 1}: {_summarize_error(exc)}", settings.terminal_logs)
+            manifest["sections"].append(
+                {
+                    **section,
+                    "error": _summarize_error(exc),
+                    "components": [],
+                }
+            )
+    return manifest
+
+
+def _discover_components(page: Page, section_id: str, settings: Settings) -> list[dict[str, Any]]:
+    components = page.evaluate(_DISCOVER_COMPONENTS_SCRIPT, section_id)
+    duplicate_total = sum(max(0, int(component.get("duplicateCount", 1)) - 1) for component in components)
+    terminal_log(
+        f"Components found in {section_id}: {len(components)} representatives, {duplicate_total} duplicates collapsed",
+        settings.terminal_logs,
+    )
+    return components
+
+
+def _capture_components(
+    page: Page,
+    section: dict[str, Any],
+    components: list[dict[str, Any]],
+    section_dir: Path,
+    settings: Settings,
+) -> list[dict[str, Any]]:
+    manifest: list[dict[str, Any]] = []
+    profiles = _build_pass_profiles(settings)
+    for component in components:
+        record = _capture_component_with_retries(page, section, component, section_dir, settings, profiles)
+        manifest.append(record)
+    return manifest
+
+
+def _capture_component_with_retries(
+    page: Page,
+    section: dict[str, Any],
+    component: dict[str, Any],
+    section_dir: Path,
+    settings: Settings,
+    profiles: list[dict[str, Any]],
+) -> dict[str, Any]:
+    component_dir = section_dir / f"component_{component['index'] + 1:03d}_{component['kind']}_{_slugify(component['label'])}"
+    component_dir.mkdir(parents=True, exist_ok=True)
+    locator = page.locator(f"[data-humanonn-component-id='{component['id']}']").first
+    record: dict[str, Any] = {
+        **component,
+        "section_id": section["id"],
+        "path": str(component_dir),
+        "status": "pending",
+        "verified": False,
+        "attempts": [],
+        "before_image_path": None,
+        "hover_image_path": None,
+        "active_image_path": None,
+        "focus_image_path": None,
+    }
+
+    for profile in profiles:
+        attempt: dict[str, Any] = {"pass": profile["name"]}
+        try:
+            _scroll_locator_into_focus(page, locator, settings, profile)
+            screen = _component_screen_state(locator)
+            attempt["screen"] = screen
+            readiness_reason = _component_readiness_reason(component, screen)
+            if readiness_reason is not None:
+                attempt["status"] = "retry"
+                attempt["reason"] = readiness_reason
+                record["attempts"].append(attempt)
+                continue
+
+            _capture_component_states(page, locator, component, component_dir, record, profile)
+            attempt["status"] = "verified"
+            record["status"] = "verified"
+            record["verified"] = True
+            record["attempts"].append(attempt)
             break
-        previous_height = height
+        except (PlaywrightError, RuntimeError) as exc:
+            attempt["status"] = "retry"
+            attempt["reason"] = _summarize_error(exc)
+            record["attempts"].append(attempt)
+            terminal_log(
+                f"Retrying component {component['index'] + 1} in {section['label']} after {profile['name']}: {_summarize_error(exc)}",
+                settings.terminal_logs,
+            )
+        finally:
+            page.mouse.move(0, 0)
+            page.wait_for_timeout(40)
+
+    if not record["verified"]:
+        final_reason = record["attempts"][-1]["reason"] if record["attempts"] else "component was not checked"
+        record["status"] = "unverified"
+        record["unverified_reason"] = final_reason
+        terminal_log(
+            f"Marked component {component['index'] + 1} in {section['label']} as unverified: {final_reason}",
+            settings.terminal_logs,
+        )
+
+    metadata_path = component_dir / "metadata.json"
+    metadata_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    record["metadata_path"] = str(metadata_path)
+    return record
 
 
-def _probe_hover_states(page: Page, settings: Settings) -> None:
-    hover_targets = [
-        ("button", "button, a[role='button'], input[type='button'], input[type='submit']", 80),
-        ("link", "a", 120),
-        ("card", "[class*='card'], [class*='feature'], [class*='pricing'], [class*='testimonial'], section > div", 120),
+def _capture_component_states(
+    page: Page,
+    locator: Locator,
+    component: dict[str, Any],
+    component_dir: Path,
+    record: dict[str, Any],
+    profile: dict[str, Any],
+) -> None:
+    before_style = locator.evaluate(_INTERACTION_STYLE_SCRIPT)
+    before_path = component_dir / "before.png"
+    locator.screenshot(path=str(before_path))
+    record["before_image_path"] = str(before_path)
+
+    hover_style = before_style
+    hover_diff: list[str] = []
+    if component["kind"] != "input":
+        hover_path = component_dir / "hover.png"
+        locator.hover(timeout=profile["hover_timeout_ms"], force=True)
+        page.wait_for_timeout(profile["interaction_wait_ms"])
+        hover_style = locator.evaluate(_INTERACTION_STYLE_SCRIPT)
+        hover_diff = _diff_styles(before_style, hover_style)
+        locator.screenshot(path=str(hover_path))
+        record["hover_image_path"] = str(hover_path)
+
+    active_style = hover_style
+    active_diff: list[str] = []
+    if component["kind"] == "input":
+        focus_path = component_dir / "focus.png"
+        locator.click(timeout=profile["hover_timeout_ms"])
+        page.wait_for_timeout(profile["interaction_wait_ms"])
+        active_style = locator.evaluate(_INTERACTION_STYLE_SCRIPT)
+        active_diff = _diff_styles(before_style, active_style)
+        locator.screenshot(path=str(focus_path))
+        record["focus_image_path"] = str(focus_path)
+    else:
+        active_path = component_dir / "active.png"
+        box = locator.bounding_box()
+        if not box:
+            raise RuntimeError("element has no bounding box for active probe")
+        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        page.mouse.down()
+        page.wait_for_timeout(profile["active_wait_ms"])
+        active_style = locator.evaluate(_INTERACTION_STYLE_SCRIPT)
+        active_diff = _diff_styles(before_style, active_style)
+        locator.screenshot(path=str(active_path))
+        page.mouse.up()
+        page.wait_for_timeout(profile["interaction_wait_ms"])
+        record["active_image_path"] = str(active_path)
+
+    locator.evaluate(
+        """(el, payload) => {
+            el.setAttribute('data-humanonn-hover-effect', payload.hoverChanged ? 'true' : 'false');
+            el.setAttribute('data-humanonn-hover-diff', payload.hoverDiff.join('|'));
+            el.setAttribute('data-humanonn-active-effect', payload.activeChanged ? 'true' : 'false');
+            el.setAttribute('data-humanonn-active-diff', payload.activeDiff.join('|'));
+        }""",
+        {
+            "hoverChanged": bool(hover_diff),
+            "hoverDiff": hover_diff,
+            "activeChanged": bool(active_diff),
+            "activeDiff": active_diff,
+        },
+    )
+
+    record["hover_changed"] = bool(hover_diff)
+    record["hover_diff"] = hover_diff
+    record["active_changed"] = bool(active_diff)
+    record["active_diff"] = active_diff
+    record["before_style"] = before_style
+    record["hover_style"] = hover_style
+    record["active_style"] = active_style
+
+
+def _scroll_locator_into_focus(page: Page, locator: Locator, settings: Settings, profile: dict[str, Any] | None = None) -> None:
+    locator.evaluate("el => el.scrollIntoView({ block: 'center', inline: 'nearest' })")
+    _settle_page(page, settings, "scroll-into-view", wait_ms=(profile or {}).get("render_wait_ms"))
+    _wait_for_locator_stable(page, locator, settings, profile)
+
+
+def _wait_for_locator_stable(
+    page: Page,
+    locator: Locator,
+    settings: Settings,
+    profile: dict[str, Any] | None = None,
+) -> None:
+    previous: dict[str, float] | None = None
+    profile = profile or {}
+    stability_checks = int(profile.get("stability_checks", settings.stability_checks))
+    stability_wait_ms = int(profile.get("stability_wait_ms", settings.stability_wait_ms))
+    for _ in range(stability_checks):
+        box = locator.bounding_box()
+        if not box:
+            raise RuntimeError("element has no bounding box")
+        current = {key: float(box[key]) for key in ("x", "y", "width", "height")}
+        if previous and all(abs(previous[key] - current[key]) <= 1.5 for key in current):
+            return
+        previous = current
+        page.wait_for_timeout(stability_wait_ms)
+    raise RuntimeError("element did not stabilize in time")
+
+
+def _settle_page(page: Page, settings: Settings, phase: str, wait_ms: int | None = None) -> None:
+    target_wait = wait_ms or settings.render_wait_ms
+    terminal_log(f"Waiting for page settle: {phase}", settings.terminal_logs)
+    page.wait_for_timeout(target_wait)
+
+
+def _component_screen_state(locator: Locator) -> dict[str, Any]:
+    return locator.evaluate(_COMPONENT_SCREEN_SCRIPT)
+
+
+def _component_readiness_reason(component: dict[str, Any], screen: dict[str, Any]) -> str | None:
+    if not screen.get("isConnected", True):
+        return "element disconnected"
+    if not screen.get("isVisible", False):
+        return "element not visible"
+    if not screen.get("sizeOk", False):
+        return "element size is too small"
+    if not screen.get("inViewport", False):
+        return "element is offscreen"
+    if screen.get("disabled", False):
+        return "element is disabled"
+    if not screen.get("interactable", False):
+        return "element is not interactable"
+    if screen.get("covered", False):
+        return "element is covered by another layer"
+    if component["kind"] in {"button", "link", "input"} and not screen.get("clickable", False):
+        return "element is not clickable"
+    return None
+
+
+def _build_pass_profiles(settings: Settings) -> list[dict[str, Any]]:
+    def scale(multiplier: float, suffix: str) -> dict[str, Any]:
+        return {
+            "name": suffix,
+            "render_wait_ms": int(settings.render_wait_ms * multiplier),
+            "interaction_wait_ms": int(settings.interaction_wait_ms * multiplier),
+            "active_wait_ms": int(settings.active_wait_ms * multiplier),
+            "stability_wait_ms": int(settings.stability_wait_ms * multiplier),
+            "hover_timeout_ms": int(settings.hover_timeout_ms * multiplier),
+            "stability_checks": max(settings.stability_checks, int(round(settings.stability_checks * multiplier))),
+        }
+
+    return [
+        scale(1.0, "pass_1"),
+        scale(settings.pass2_wait_multiplier, "pass_2"),
+        scale(settings.pass3_wait_multiplier, "pass_3"),
     ]
-    for label, selector, limit in hover_targets:
-        locator = page.locator(selector)
-        count = min(locator.count(), limit)
-        changed = 0
-        terminal_log(f"Hover targets for {label}: {count}", settings.terminal_logs)
-        for index in range(count):
-            item = locator.nth(index)
-            try:
-                item.scroll_into_view_if_needed(timeout=2000)
-                before = item.evaluate(_HOVER_STYLE_SCRIPT)
-                item.hover(timeout=2000, force=True)
-                page.wait_for_timeout(90)
-                after = item.evaluate(_HOVER_STYLE_SCRIPT)
-                diff = _diff_hover_styles(before, after)
-                if diff:
-                    changed += 1
-                item.evaluate(
-                    """(el, payload) => {
-                        el.setAttribute('data-humanonn-hover-effect', payload.changed ? 'true' : 'false');
-                        el.setAttribute('data-humanonn-hover-diff', payload.diff.join('|'));
-                    }""",
-                    {"changed": bool(diff), "diff": diff},
-                )
-            except PlaywrightError as exc:
-                terminal_log(f"Skipped {label} hover {index + 1}: {exc}", settings.terminal_logs)
-        page.mouse.move(0, 0)
-        terminal_log(f"Hover effects detected for {label}: {changed}/{count}", settings.terminal_logs)
 
 
-def _diff_hover_styles(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
-    changes: list[str] = []
-    for key in before:
-        if str(before.get(key)) != str(after.get(key)):
-            changes.append(key)
-    return changes
+def _diff_styles(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
+    return [key for key in before if str(before.get(key)) != str(after.get(key))]
+
+
+def _slugify(value: str) -> str:
+    text = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower()).strip("-")
+    return text[:40] or "item"
+
+
+def _summarize_error(exc: Exception) -> str:
+    return str(exc).splitlines()[0].strip()
 
 
 def _log_snapshot_summary(data: dict[str, Any], settings: Settings) -> None:
@@ -257,16 +575,195 @@ def _log_snapshot_summary(data: dict[str, Any], settings: Settings) -> None:
     hover_button_count = sum(1 for item in data.get("buttons", []) if item.get("hasHoverEffect"))
     hover_link_count = sum(1 for item in data.get("links", []) if item.get("hasHoverEffect"))
     hover_card_count = sum(1 for item in data.get("sections", []) if item.get("hasHoverEffect"))
+    active_button_count = sum(1 for item in data.get("buttons", []) if item.get("hasActiveProbeEffect"))
     terminal_log(
-        f"Hover effects recorded: buttons {hover_button_count}, links {hover_link_count}, cards/sections {hover_card_count}",
+        f"Interaction effects recorded: buttons hover {hover_button_count}, links hover {hover_link_count}, "
+        f"cards hover {hover_card_count}, buttons active {active_button_count}",
         settings.terminal_logs,
     )
+    terminal_log(f"Artifacts stored in: {data.get('raw', {}).get('artifact_root')}", settings.terminal_logs)
     body = data.get("body", {})
     terminal_log(
         f"Body background: {body.get('backgroundColor', 'n/a')} | Hero background image present: "
         f"{bool(body.get('heroBackgroundImage') and body.get('heroBackgroundImage') != 'none')}",
         settings.terminal_logs,
     )
+
+
+_DISCOVER_SECTIONS_SCRIPT = """
+() => {
+  const textOf = (el) => (el.innerText || el.textContent || "").trim().replace(/\\s+/g, " ");
+  const isVisible = (el) => {
+    const rect = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    if (cs.display === "none" || cs.visibility === "hidden") return false;
+    if (Number.parseFloat(cs.opacity || "1") < 0.05) return false;
+    if (rect.width < 280 || rect.height < 120) return false;
+    return true;
+  };
+  const nodes = [...document.querySelectorAll("main section, section, article, [data-section], footer, main > div")];
+  const seen = new Set();
+  const sections = [];
+  for (const el of nodes) {
+    if (!isVisible(el)) continue;
+    const rect = el.getBoundingClientRect();
+    const absTop = Math.round(rect.top + window.scrollY);
+    const key = `${absTop}:${Math.round(rect.height)}:${Math.round(rect.width)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const labelNode = el.querySelector("h1,h2,h3,[aria-label],[data-section-title]");
+    const label = (
+      el.getAttribute("aria-label") ||
+      el.getAttribute("data-section") ||
+      (labelNode ? textOf(labelNode) : "") ||
+      textOf(el).slice(0, 60) ||
+      `section-${sections.length + 1}`
+    ).slice(0, 80);
+    const id = `section-${sections.length + 1}`;
+    el.setAttribute("data-humanonn-section-id", id);
+    sections.push({
+      id,
+      index: sections.length,
+      label,
+      top: absTop,
+      width: Math.round(rect.width),
+      height: Math.round(rect.height)
+    });
+  }
+  return sections;
+}
+"""
+
+
+_DISCOVER_COMPONENTS_SCRIPT = """
+(sectionId) => {
+  const section = document.querySelector(`[data-humanonn-section-id="${sectionId}"]`);
+  if (!section) return [];
+
+  const textOf = (el) => (el.innerText || el.textContent || "").trim().replace(/\\s+/g, " ");
+  const px = (value) => Number.parseFloat(String(value || "0")) || 0;
+  const styleOf = (el) => {
+    const cs = getComputedStyle(el);
+    return {
+      borderRadius: cs.borderRadius,
+      boxShadow: cs.boxShadow,
+      backdropFilter: cs.backdropFilter || cs.webkitBackdropFilter || "",
+      borderTopWidth: cs.borderTopWidth,
+      borderBottomWidth: cs.borderBottomWidth,
+      cursor: cs.cursor,
+      transitionDuration: cs.transitionDuration,
+      transitionTimingFunction: cs.transitionTimingFunction
+    };
+  };
+  const isVisible = (el) => {
+    const rect = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    if (cs.display === "none" || cs.visibility === "hidden") return false;
+    if (Number.parseFloat(cs.opacity || "1") < 0.05) return false;
+    if (rect.width < 20 || rect.height < 20) return false;
+    return true;
+  };
+  const normalizedClass = (el) => String(el.className || "")
+    .toLowerCase()
+    .split(/\\s+/)
+    .filter(Boolean)
+    .map((token) => token.replace(/\\d+/g, "#"))
+    .slice(0, 6)
+    .join(".");
+  const patternKeyFor = (kind, el, rect, label) => {
+    const href = el.tagName.toLowerCase() === "a" ? new URL(el.href, location.href).pathname : "";
+    const textSig = label.toLowerCase().replace(/\\s+/g, " ").slice(0, 32);
+    const widthBucket = Math.round(rect.width / 40) * 40;
+    const heightBucket = Math.round(rect.height / 20) * 20;
+    return [kind, el.tagName.toLowerCase(), normalizedClass(el), href, textSig, widthBucket, heightBucket].join("|");
+  };
+  const isPotentiallyClickable = (el) => {
+    const cs = getComputedStyle(el);
+    if (cs.pointerEvents === "none") return false;
+    if (el.hasAttribute("disabled") || el.getAttribute("aria-disabled") === "true") return false;
+    if (["button", "input", "select", "textarea"].includes(el.tagName.toLowerCase())) return true;
+    if (el.tagName.toLowerCase() === "a" && !!el.getAttribute("href")) return true;
+    if ((el.getAttribute("role") || "").toLowerCase() === "button") return true;
+    if (cs.cursor === "pointer") return true;
+    if (typeof el.onclick === "function") return true;
+    return Boolean(el.querySelector("a,button,[role='button']"));
+  };
+  const isCardLike = (el) => {
+    const style = styleOf(el);
+    const classText = `${el.className || ""}`.toLowerCase();
+    const hasClass = ["card", "feature", "pricing", "testimonial", "plan", "tier"].some((token) => classText.includes(token));
+    const elevated = style.boxShadow !== "none" || style.backdropFilter.includes("blur");
+    const rounded = px(style.borderRadius) >= 12;
+    const bordered = px(style.borderTopWidth) > 0 || px(style.borderBottomWidth) > 0;
+    const hasContent = textOf(el).length >= 12 || Boolean(el.querySelector("img,svg,button,a"));
+    return hasContent && (hasClass || elevated || rounded || bordered);
+  };
+  const hasCardAncestor = (el) => {
+    let parent = el.parentElement;
+    while (parent && parent !== section) {
+      if (isCardLike(parent)) return true;
+      parent = parent.parentElement;
+    }
+    return false;
+  };
+  const candidates = [];
+  const seen = new Set();
+  const seenPatterns = new Map();
+  const push = (kind, el) => {
+    if (!isVisible(el)) return;
+    const rect = el.getBoundingClientRect();
+    const label = (
+      el.getAttribute("aria-label") ||
+      textOf(el) ||
+      el.getAttribute("placeholder") ||
+      el.getAttribute("name") ||
+      kind
+    ).slice(0, 80);
+    const key = `${kind}:${label}:${Math.round(rect.top)}:${Math.round(rect.left)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const patternKey = patternKeyFor(kind, el, rect, label);
+    const existingIndex = seenPatterns.get(patternKey);
+    if (existingIndex !== undefined) {
+      candidates[existingIndex].duplicateCount += 1;
+      return;
+    }
+    const id = `${sectionId}-component-${candidates.length + 1}`;
+    el.setAttribute("data-humanonn-component-id", id);
+    el.setAttribute("data-humanonn-component-kind", kind);
+    seenPatterns.set(patternKey, candidates.length);
+    candidates.push({
+      id,
+      index: candidates.length,
+      kind,
+      label,
+      text: textOf(el).slice(0, 200),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      className: String(el.className || ""),
+      styles: styleOf(el),
+      patternKey,
+      duplicateCount: 1,
+      interactableHint: isPotentiallyClickable(el)
+    });
+  };
+
+  [...section.querySelectorAll("button, [role='button'], input[type='button'], input[type='submit']")].forEach((el) => push("button", el));
+  [...section.querySelectorAll("a[href]")].forEach((el) => {
+    const rect = el.getBoundingClientRect();
+    if (textOf(el) || rect.width >= 32 || rect.height >= 32) push("link", el);
+  });
+  [...section.querySelectorAll("input, textarea, select")].forEach((el) => push("input", el));
+  [...section.querySelectorAll("div, article, li, a")].forEach((el) => {
+    if (el.closest("button")) return;
+    if (hasCardAncestor(el)) return;
+    if (!isPotentiallyClickable(el) && !el.querySelector("a,button,[role='button']")) return;
+    if (isCardLike(el)) push("card", el);
+  });
+
+  return candidates.slice(0, 120);
+}
+"""
 
 
 _SNAPSHOT_SCRIPT = """
@@ -308,9 +805,14 @@ _SNAPSHOT_SCRIPT = """
   };
   const compactStyle = (el) => ({ text: textOf(el), className: el.className || "", ...styleOf(el) });
   const humanonnMeta = (el) => ({
+    componentId: el.getAttribute("data-humanonn-component-id") || "",
+    componentKind: el.getAttribute("data-humanonn-component-kind") || "",
+    sectionId: el.closest("[data-humanonn-section-id]")?.getAttribute("data-humanonn-section-id") || "",
     hasHoverEffect: el.getAttribute("data-humanonn-hover-effect") === "true",
     hoverDiff: (el.getAttribute("data-humanonn-hover-diff") || "").split("|").filter(Boolean),
-    scrollIndex: el.getAttribute("data-humanonn-scroll-index") || ""
+    hasActiveProbeEffect: el.getAttribute("data-humanonn-active-effect") === "true",
+    activeDiff: (el.getAttribute("data-humanonn-active-diff") || "").split("|").filter(Boolean),
+    scrollIndex: el.closest("[data-humanonn-section-id]")?.getAttribute("data-humanonn-scroll-index") || ""
   });
   const hasVisibleFocus = (el) => {
     const before = styleOf(el);
@@ -344,7 +846,7 @@ _SNAPSHOT_SCRIPT = """
     heroBackgroundImage: hero ? getComputedStyle(hero).backgroundImage : "",
   };
   const buttons = [...document.querySelectorAll("button, a[role='button'], input[type='button'], input[type='submit']")]
-    .slice(0, 80)
+    .slice(0, 120)
     .map((el) => ({
       ...compactStyle(el),
       ...humanonnMeta(el),
@@ -352,7 +854,7 @@ _SNAPSHOT_SCRIPT = """
       hasActiveFeedback: hasActiveFeedback(el)
     }));
   const inputs = [...document.querySelectorAll("input, textarea, select")]
-    .slice(0, 80)
+    .slice(0, 120)
     .map((el) => ({
       ...compactStyle(el),
       ...humanonnMeta(el),
@@ -362,7 +864,7 @@ _SNAPSHOT_SCRIPT = """
       hasVisibleFocus: hasVisibleFocus(el)
     }));
   const links = [...document.querySelectorAll("a")]
-    .slice(0, 120)
+    .slice(0, 160)
     .map((el) => ({
       ...compactStyle(el),
       ...humanonnMeta(el),
@@ -371,10 +873,10 @@ _SNAPSHOT_SCRIPT = """
       ariaCurrent: el.getAttribute("aria-current") || ""
     }));
   const headings = [...document.querySelectorAll("h1,h2,h3,h4,h5,h6,[class*='badge'],[class*='eyebrow']")]
-    .slice(0, 120)
+    .slice(0, 160)
     .map((el) => ({ ...compactStyle(el), ...humanonnMeta(el), tagName: el.tagName.toLowerCase(), fontSizeRaw: el.getAttribute("style") || "" }));
-  const sections = [...document.querySelectorAll("section, main > div, article, [class*='card'], [class*='feature']")]
-    .slice(0, 120)
+  const sections = [...document.querySelectorAll("[data-humanonn-section-id], [data-humanonn-component-kind='card'], article, footer")]
+    .slice(0, 160)
     .map((el) => {
       const s = compactStyle(el);
       const rect = el.getBoundingClientRect();
@@ -382,6 +884,7 @@ _SNAPSHOT_SCRIPT = """
       return {
         ...s,
         ...humanonnMeta(el),
+        id: el.getAttribute("data-humanonn-section-id") || "",
         width: Math.round(rect.width),
         height: Math.round(rect.height),
         role: el.getAttribute("data-section") || el.getAttribute("aria-label") || "",
@@ -391,11 +894,11 @@ _SNAPSHOT_SCRIPT = """
       };
     });
   const images = [...document.querySelectorAll("img")]
-    .slice(0, 120)
+    .slice(0, 160)
     .map((el) => ({ src: el.currentSrc || el.src, alt: el.getAttribute("alt") || "", width: el.naturalWidth, height: el.naturalHeight }));
   const colorValues = [];
   [...document.querySelectorAll("body, main, section, button, a, h1, h2, h3, p")]
-    .slice(0, 200)
+    .slice(0, 240)
     .forEach((el) => {
       const s = getComputedStyle(el);
       colorValues.push(s.color, s.backgroundColor, s.borderColor);
@@ -425,7 +928,7 @@ _SNAPSHOT_SCRIPT = """
 """
 
 
-_HOVER_STYLE_SCRIPT = """
+_INTERACTION_STYLE_SCRIPT = """
 (el) => {
   const cs = getComputedStyle(el);
   return {
@@ -439,6 +942,53 @@ _HOVER_STYLE_SCRIPT = """
     textDecorationLine: cs.textDecorationLine,
     textDecorationColor: cs.textDecorationColor,
     outlineColor: cs.outlineColor
+  };
+}
+"""
+
+
+_COMPONENT_SCREEN_SCRIPT = """
+(el) => {
+  const rect = el.getBoundingClientRect();
+  const cs = getComputedStyle(el);
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const withinViewport = (
+    rect.bottom > 0 &&
+    rect.right > 0 &&
+    rect.top < window.innerHeight &&
+    rect.left < window.innerWidth
+  );
+  const centerInsideViewport = (
+    centerX >= 0 &&
+    centerY >= 0 &&
+    centerX <= window.innerWidth &&
+    centerY <= window.innerHeight
+  );
+  let covered = false;
+  if (centerInsideViewport) {
+    const topElement = document.elementFromPoint(centerX, centerY);
+    covered = Boolean(topElement && topElement !== el && !el.contains(topElement) && !topElement.contains(el));
+  }
+  const disabled = Boolean(el.hasAttribute("disabled") || el.getAttribute("aria-disabled") === "true");
+  const clickable = !disabled && cs.pointerEvents !== "none" && (
+    ["a", "button", "input", "select", "textarea"].includes(el.tagName.toLowerCase()) ||
+    (el.getAttribute("role") || "").toLowerCase() === "button" ||
+    cs.cursor === "pointer" ||
+    typeof el.onclick === "function"
+  );
+  return {
+    isConnected: el.isConnected,
+    isVisible: cs.display !== "none" && cs.visibility !== "hidden" && Number.parseFloat(cs.opacity || "1") >= 0.05,
+    sizeOk: rect.width >= 20 && rect.height >= 20,
+    inViewport: withinViewport,
+    covered,
+    disabled,
+    pointerEvents: cs.pointerEvents,
+    clickable,
+    interactable: cs.pointerEvents !== "none" && !disabled && withinViewport,
+    width: Math.round(rect.width),
+    height: Math.round(rect.height)
   };
 }
 """

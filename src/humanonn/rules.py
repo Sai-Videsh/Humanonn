@@ -192,6 +192,18 @@ def missing_active_state(snapshot: AuditSnapshot, signal: SignalDefinition) -> S
     buttons = snapshot.buttons
     if not buttons:
         return finding(signal, False, 0.0, "No buttons found.")
+    probed = [b for b in buttons if b.get("componentId")]
+    if probed:
+        missing = [b for b in probed if not b.get("hasActiveProbeEffect")]
+        total = len(probed)
+        flagged = total > 0 and len(missing) / total >= 0.7
+        return finding(
+            signal,
+            flagged,
+            0.85 if flagged else 0.0,
+            f"{len(missing)}/{total} probed buttons showed no pressed-state change." if flagged else "Button pressed-state feedback appears present.",
+            {"buttons": total, "missing": len(missing), "probe_based": True},
+        )
     missing = [b for b in buttons if not b.get("hasActiveFeedback")]
     flagged = len(missing) / len(buttons) >= 0.7
     return finding(signal, flagged, 0.75, f"{len(missing)}/{len(buttons)} buttons show no active-state feedback." if flagged else "Button active feedback appears present.", {"buttons": len(buttons), "missing": len(missing)})

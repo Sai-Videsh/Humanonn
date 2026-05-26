@@ -30,8 +30,18 @@ class Settings:
     embeddings_model: str
     headless: bool
     timeout_ms: int
+    navigation_timeout_ms: int
+    networkidle_timeout_ms: int
     screenshot_dir: str
     terminal_logs: bool
+    render_wait_ms: int
+    interaction_wait_ms: int
+    active_wait_ms: int
+    stability_wait_ms: int
+    hover_timeout_ms: int
+    stability_checks: int
+    pass2_wait_multiplier: float
+    pass3_wait_multiplier: float
 
     @property
     def llm_enabled(self) -> bool:
@@ -88,8 +98,18 @@ def load_settings() -> Settings:
         embeddings_model=os.getenv("HUMANONN_EMBEDDINGS_MODEL", "jina-embeddings-v3"),
         headless=os.getenv("HUMANONN_HEADLESS", "true").lower() != "false",
         timeout_ms=int(os.getenv("HUMANONN_TIMEOUT_MS", "30000")),
+        navigation_timeout_ms=int(os.getenv("HUMANONN_NAVIGATION_TIMEOUT_MS", os.getenv("HUMANONN_TIMEOUT_MS", "30000"))),
+        networkidle_timeout_ms=int(os.getenv("HUMANONN_NETWORKIDLE_TIMEOUT_MS", "12000")),
         screenshot_dir=os.getenv("HUMANONN_SCREENSHOT_DIR", "reports/screenshots"),
         terminal_logs=os.getenv("HUMANONN_TERMINAL_LOGS", "true").lower() != "false",
+        render_wait_ms=int(os.getenv("HUMANONN_RENDER_WAIT_MS", "700")),
+        interaction_wait_ms=int(os.getenv("HUMANONN_INTERACTION_WAIT_MS", "180")),
+        active_wait_ms=int(os.getenv("HUMANONN_ACTIVE_WAIT_MS", "140")),
+        stability_wait_ms=int(os.getenv("HUMANONN_STABILITY_WAIT_MS", "220")),
+        hover_timeout_ms=int(os.getenv("HUMANONN_HOVER_TIMEOUT_MS", "4000")),
+        stability_checks=int(os.getenv("HUMANONN_STABILITY_CHECKS", "8")),
+        pass2_wait_multiplier=float(os.getenv("HUMANONN_PASS2_WAIT_MULTIPLIER", "1.6")),
+        pass3_wait_multiplier=float(os.getenv("HUMANONN_PASS3_WAIT_MULTIPLIER", "2.4")),
     )
 
 
