@@ -86,6 +86,28 @@ def gradient_text(snapshot: AuditSnapshot, signal: SignalDefinition) -> SignalFi
     return finding(signal, bool(items), 0.8, "Heading text uses background-clip/text-fill gradient treatment." if items else "No gradient heading text detected.", {"count": len(items)})
 
 
+def canvas_webgl_hero_background(snapshot: AuditSnapshot, signal: SignalDefinition) -> SignalFinding:
+    hero_canvas = bool(snapshot.raw.get("heroCanvasBackground"))
+    hero_webgl = bool(snapshot.raw.get("heroWebGLBackground"))
+    flagged = hero_canvas or hero_webgl
+    reason = "Hero background is rendered via canvas/WebGL instead of a CSS background." if flagged else "No canvas/WebGL hero background detected."
+    return finding(signal, flagged, 0.9 if flagged else 0.0, reason, {"heroCanvasBackground": hero_canvas, "heroWebGLBackground": hero_webgl})
+
+
+def canvas_rendered_ui(snapshot: AuditSnapshot, signal: SignalDefinition) -> SignalFinding:
+    count = int(snapshot.raw.get("canvasRenderedInteractiveCount", 0) or 0)
+    flagged = count > 0
+    reason = "Interactive elements appear to sit inside a canvas-rendered region." if flagged else "No canvas-rendered interactive UI detected."
+    return finding(signal, flagged, 0.9 if flagged else 0.0, reason, {"canvasRenderedInteractiveCount": count})
+
+
+def dynamic_injected_styles(snapshot: AuditSnapshot, signal: SignalDefinition) -> SignalFinding:
+    count = int(snapshot.raw.get("dynamicStyleInjectionCount", 0) or 0)
+    flagged = count > 0
+    reason = "Inline style attributes contain runtime gradient/blur/opacity values." if flagged else "No dynamic injected styles detected."
+    return finding(signal, flagged, 0.8 if flagged else 0.0, reason, {"dynamicStyleInjectionCount": count})
+
+
 def beta_badge(snapshot: AuditSnapshot, signal: SignalDefinition) -> SignalFinding:
     text = snapshot.text.get("visible", "").lower()
     flagged = any(phrase in text for phrase in ["now in beta", "beta", "early access"])
@@ -342,6 +364,8 @@ EVALUATORS: dict[str, Evaluator] = {
     "glassmorphism": glassmorphism,
     "dark_only": dark_only,
     "gradient_text": gradient_text,
+    "canvas_webgl_hero_background": canvas_webgl_hero_background,
+    "canvas_rendered_ui": canvas_rendered_ui,
     "beta_badge": beta_badge,
     "dot_grid_overlay": dot_grid_overlay,
     "cta_glow": cta_glow,
@@ -353,6 +377,7 @@ EVALUATORS: dict[str, Evaluator] = {
     "spacing_rhythm_off": spacing_rhythm_off,
     "too_many_dividers": too_many_dividers,
     "no_pointer_cards": no_pointer_cards,
+    "dynamic_injected_styles": dynamic_injected_styles,
     "missing_focus_states": missing_focus_states,
     "placeholder_only_labels": placeholder_only_labels,
     "missing_active_state": missing_active_state,

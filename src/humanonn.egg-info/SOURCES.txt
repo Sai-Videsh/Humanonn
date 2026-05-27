@@ -5,11 +5,14 @@ src/humanonn/__main__.py
 src/humanonn/agent.py
 src/humanonn/cli.py
 src/humanonn/config.py
+src/humanonn/llm_clients.py
 src/humanonn/model_routing.py
 src/humanonn/models.py
 src/humanonn/rules.py
+src/humanonn/runtime.py
 src/humanonn/scoring.py
 src/humanonn/signals.py
+src/humanonn/smart_scoring.py
 src/humanonn.egg-info/PKG-INFO
 src/humanonn.egg-info/SOURCES.txt
 src/humanonn.egg-info/dependency_links.txt

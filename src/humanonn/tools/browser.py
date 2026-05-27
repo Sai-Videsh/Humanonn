@@ -32,13 +32,17 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
     try:
         with sync_playwright() as p:
             terminal_log(f"Launching Chromium (headless={settings.headless})", settings.terminal_logs)
-            browser = p.chromium.launch(headless=settings.headless)
+            browser = p.chromium.launch(
+                headless=settings.headless,
+                args=["--enable-unsafe-swiftshader"],
+            )
             page = browser.new_page(viewport={"width": 1440, "height": 1200})
             _attach_page_logs(page, settings)
 
             terminal_log("Navigating to page with staged readiness checks", settings.terminal_logs)
             _navigate_page(page, url, settings)
-            _settle_page(page, settings, "post-navigation")
+            _settle_page(page, settings, "post-navigation", wait_ms=3600)
+            _scroll_to_bottom_pass(page, settings)
             terminal_log(f"Navigation complete: {page.url}", settings.terminal_logs)
 
             sections = _discover_sections(page, settings)
@@ -56,6 +60,7 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
 
             page.evaluate("window.scrollTo(0, 0)")
             _settle_page(page, settings, "before-snapshot")
+            page.evaluate("document.fonts ? document.fonts.ready : Promise.resolve()")
             terminal_log("Extracting computed styles, structure, and content snapshot", settings.terminal_logs)
             data = page.evaluate(_SNAPSHOT_SCRIPT)
             data.setdefault("raw", {})
@@ -190,15 +195,30 @@ def _navigate_page(page: Page, url: str, settings: Settings) -> None:
         terminal_log(f"Load state wait timed out; continuing with current DOM: {_summarize_error(exc)}", settings.terminal_logs)
 
     try:
-        page.wait_for_load_state("networkidle", timeout=settings.networkidle_timeout_ms)
-        terminal_log("Page reached networkidle", settings.terminal_logs)
-    except PlaywrightTimeoutError as exc:
-        terminal_log(f"Network idle wait timed out; continuing with rendered page: {_summarize_error(exc)}", settings.terminal_logs)
-
-    try:
         page.locator("body").wait_for(state="visible", timeout=min(settings.navigation_timeout_ms, 5000))
     except PlaywrightTimeoutError as exc:
         raise RuntimeError(f"Page body never became visible: {_summarize_error(exc)}") from exc
+
+
+def _scroll_to_bottom_pass(page: Page, settings: Settings) -> None:
+    terminal_log("Performing scroll-to-bottom render pass", settings.terminal_logs)
+    page.evaluate(
+        """async () => {
+            const step = Math.max(320, Math.floor(window.innerHeight * 0.8));
+            let position = 0;
+            const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+            while (position < maxScroll) {
+                window.scrollTo(0, position);
+                await new Promise((resolve) => setTimeout(resolve, 120));
+                position += step;
+            }
+            window.scrollTo(0, maxScroll);
+            await new Promise((resolve) => setTimeout(resolve, 180));
+            window.scrollTo(0, 0);
+            await new Promise((resolve) => setTimeout(resolve, 120));
+        }"""
+    )
+    _settle_page(page, settings, "after-scroll-to-bottom", wait_ms=3600)
 
 
 def _page_has_usable_dom(page: Page) -> bool:
@@ -839,8 +859,38 @@ _SNAPSHOT_SCRIPT = """
     const parentLabel = el.closest("label");
     return parentLabel ? textOf(parentLabel) : "";
   };
-  const bodyStyle = styleOf(document.body);
-  const hero = document.querySelector("main section, section, header");
+    const bodyStyle = styleOf(document.body);
+    const hero = document.querySelector("main section, section, header");
+    const canvasElements = [...document.querySelectorAll("canvas")];
+    const canvasRects = canvasElements
+        .map((el) => el.getBoundingClientRect())
+        .filter((rect) => rect.width > 0 && rect.height > 0);
+    const heroCanvasBackground = Boolean(hero && hero.querySelector("canvas"));
+    const heroWebGLBackground = heroCanvasBackground && canvasElements.some((el) => {
+        try {
+            return Boolean(el.getContext && (el.getContext("webgl") || el.getContext("experimental-webgl")));
+        } catch (error) {
+            return false;
+        }
+    });
+    const canvasRenderedInteractiveCount = [...document.querySelectorAll("button, a, [role='button'], [data-humanonn-component-kind='card'], article")]
+        .filter((el) => {
+            const rect = el.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) return false;
+            return canvasRects.some((canvasRect) => (
+                rect.left >= canvasRect.left &&
+                rect.top >= canvasRect.top &&
+                rect.right <= canvasRect.right &&
+                rect.bottom <= canvasRect.bottom
+            ));
+        })
+        .length;
+    const dynamicStyleInjectionCount = [...document.querySelectorAll("[style]")]
+        .filter((el) => {
+            const style = (el.getAttribute("style") || "").toLowerCase();
+            return /(gradient|blur|opacity)/.test(style);
+        })
+        .length;
   const body = {
     ...bodyStyle,
     heroBackgroundImage: hero ? getComputedStyle(hero).backgroundImage : "",
@@ -903,9 +953,14 @@ _SNAPSHOT_SCRIPT = """
       const s = getComputedStyle(el);
       colorValues.push(s.color, s.backgroundColor, s.borderColor);
     });
-  const fonts = [...new Set([...document.querySelectorAll("body, h1, h2, h3, p, button, a")]
-    .map((el) => getComputedStyle(el).fontFamily.split(",")[0].replace(/[\"']/g, "").trim())
-    .filter(Boolean))];
+    const fontSamples = [
+        document.body,
+        document.querySelector("h1, h2, h3"),
+        document.querySelector("button, a, [role='button']")
+    ].filter(Boolean);
+    const fonts = [...new Set(fontSamples
+        .map((el) => getComputedStyle(el).fontFamily.split(",")[0].replace(/[\"']/g, "").trim())
+        .filter(Boolean))];
   return {
     title: document.title || "",
     colors: { all: [...new Set(colorValues)].filter((c) => c && c !== "rgba(0, 0, 0, 0)") },
@@ -920,7 +975,11 @@ _SNAPSHOT_SCRIPT = """
     text: { visible: textOf(document.body) },
     raw: {
       hasFavicon: Boolean(document.querySelector("link[rel~='icon'], link[rel='shortcut icon']")),
-      titleAttributeCount: document.querySelectorAll("[title]").length,
+    titleAttributeCount: document.querySelectorAll("[title]").length,
+    heroCanvasBackground,
+    heroWebGLBackground,
+    canvasRenderedInteractiveCount,
+    dynamicStyleInjectionCount,
       scrollTriggeredExploration: true
     }
   };

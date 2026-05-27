@@ -29,6 +29,14 @@ ARCHETYPES = {
     ),
 }
 
+VISION_OVERRIDE_SIGNAL_IDS = {
+    "all_centered_headings",
+    "canvas_rendered_ui",
+    "canvas_webgl_hero_background",
+    "dynamic_injected_styles",
+    "stock_image_pattern",
+}
+
 
 def run_smart_scoring(
     snapshot: AuditSnapshot,
@@ -57,6 +65,7 @@ def run_smart_scoring(
 
     ambiguity_result, ambiguity_candidate, ambiguity_attempts = _run_ambiguity(router, evidence_pack)
     vision_result, vision_candidate, vision_attempts = _run_vision(router, snapshot, evidence_pack)
+    vision_overrides = _vision_signal_overrides(vision_result)
     embedding_result, embedding_candidate, embedding_attempts = _run_embeddings(router, evidence_pack)
     aggregator_result, aggregator_candidate, aggregator_attempts = _run_aggregator(
         router,
@@ -66,8 +75,32 @@ def run_smart_scoring(
         embedding_result,
     )
 
-    merged_findings = _merge_findings(base_report.findings, aggregator_result.get("signal_overrides", []), ambiguity_result.get("signal_reviews", []))
+    # Surface archetype label from embedding similarities (if available)
+    archetype_label = None
+    try:
+        sims = embedding_result.get("similarities", []) if isinstance(embedding_result, dict) else []
+        if sims:
+            archetype_label = sims[0].get("label")
+    except Exception:
+        archetype_label = None
+
+    merged_findings = _merge_findings(
+        base_report.findings,
+        [*aggregator_result.get("signal_overrides", []), *ambiguity_result.get("signal_reviews", []), *vision_overrides],
+    )
     llm_adjustment = float(aggregator_result.get("score_adjustment", 0))
+
+    # Re-validate post-merge: compute deterministic score without LLM adjustment
+    # If the merged deterministic score is now confidently outside the borderline
+    # window (38-52), zero out the LLM adjustment because overrides already resolved ambiguity.
+    zeroed_llm_note = None
+    post_merge_deterministic = score_findings(merged_findings, score_mode="smart_llm", llm_adjustment=0.0)
+    if not 38 <= post_merge_deterministic.vibe_score <= 52:
+        zeroed_llm_note = (
+            f"Zeroed LLM adjustment because post-merge deterministic score {post_merge_deterministic.vibe_score} is outside the 38-52 borderline window."
+        )
+        llm_adjustment = 0.0
+
     score = score_findings(merged_findings, score_mode="smart_llm", llm_adjustment=llm_adjustment)
 
     report = AuditReport(
@@ -78,6 +111,7 @@ def run_smart_scoring(
         screenshot_path=base_report.screenshot_path,
         agent_notes=list(base_report.agent_notes),
         smart_summary=aggregator_result.get("summary"),
+        archetype_label=archetype_label,
         dynamic_findings=aggregator_result.get("dynamic_findings", []),
         llm_evidence={
             "ambiguity": {
@@ -89,6 +123,7 @@ def run_smart_scoring(
                 "candidate": _candidate_payload(vision_candidate),
                 "attempts": vision_attempts,
                 "result": vision_result,
+                "signal_overrides": vision_overrides,
             },
             "embeddings": {
                 "candidate": _candidate_payload(embedding_candidate),
@@ -119,15 +154,18 @@ def run_smart_scoring(
                         "humanness_score": report.score.humanness_score,
                         "llm_adjustment": report.score.llm_adjustment,
                     },
+                    "archetype_label": report.archetype_label,
                 },
                 indent=2,
             ),
             encoding="utf-8",
         )
+        if zeroed_llm_note:
+            report.agent_notes.append(zeroed_llm_note)
 
-    report.agent_notes.append(
-        f"{aggregator_candidate.bug_tag} produced smart scoring with adjustment {report.score.llm_adjustment:+.2f}."
-    )
+        report.agent_notes.append(
+            f"{aggregator_candidate.bug_tag} produced smart scoring with adjustment {report.score.llm_adjustment:+.2f}."
+        )
     return report
 
 
@@ -306,11 +344,10 @@ def _build_evidence_pack(
 
 def _merge_findings(
     base_findings: list[SignalFinding],
-    aggregator_overrides: list[dict[str, Any]],
-    ambiguity_reviews: list[dict[str, Any]],
+    override_payloads: list[dict[str, Any]],
 ) -> list[SignalFinding]:
     merged = {finding.id: finding for finding in base_findings}
-    for payload in [*ambiguity_reviews, *aggregator_overrides]:
+    for payload in override_payloads:
         signal_id = payload.get("id")
         if not signal_id or signal_id not in merged:
             continue
@@ -325,9 +362,41 @@ def _merge_findings(
             confidence=float(payload.get("confidence", current.confidence if current.flagged else 0.0)),
             reason=str(payload.get("reason", current.reason)),
             fix=str(payload.get("fix", current.fix)),
-            evidence={**current.evidence, "llm_override": True},
+            evidence={**current.evidence, "override_source": payload.get("source", "llm")},
         )
     return list(merged.values())
+
+
+def _vision_signal_overrides(vision_result: dict[str, Any]) -> list[dict[str, Any]]:
+    confirmations = vision_result.get("signal_confirmations", []) if isinstance(vision_result, dict) else []
+    overrides: list[dict[str, Any]] = []
+    for item in confirmations:
+        signal_id = item.get("signal_id")
+        if signal_id not in VISION_OVERRIDE_SIGNAL_IDS:
+            continue
+        verdict = str(item.get("verdict", "")).lower()
+        if verdict not in {"confirmed", "denied", "uncertain"}:
+            continue
+        signal = SIGNAL_BY_ID.get(signal_id)
+        if not signal:
+            continue
+        flagged = verdict == "confirmed"
+        if verdict == "uncertain":
+            confidence = 0.5
+        else:
+            confidence = 1.0 if flagged else 0.0
+        overrides.append(
+            {
+                "id": signal_id,
+                "bucket": signal.bucket,
+                "flagged": flagged,
+                "confidence": confidence,
+                "source": "vision",
+                "reason": item.get("visual_evidence") or item.get("reason") or "Vision confirmation override.",
+                "fix": signal.fix,
+            }
+        )
+    return overrides
 
 
 def _load_manifest(path: str | None) -> dict[str, Any]:

@@ -72,5 +72,6 @@ class AuditReport:
     screenshot_path: str | None
     agent_notes: list[str] = field(default_factory=list)
     smart_summary: str | None = None
+    archetype_label: str | None = None
     dynamic_findings: list[dict[str, Any]] = field(default_factory=list)
     llm_evidence: dict[str, Any] = field(default_factory=dict)

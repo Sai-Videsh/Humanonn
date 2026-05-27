@@ -31,8 +31,8 @@ def test_cluster_bonus_for_tier1_and_tier4() -> None:
 
     assert score.base_score == 53.0
     assert score.cluster_bonus == 25
-    assert score.vibe_score == 22
-    assert score.humanness_score == 78
+    assert score.vibe_score == 21
+    assert score.humanness_score == 79
 
 
 def test_normalisation_and_llm_adjustment_are_applied_after_raw_scoring() -> None:
@@ -41,8 +41,8 @@ def test_normalisation_and_llm_adjustment_are_applied_after_raw_scoring() -> Non
 
     assert score.base_score == 41.25
     assert score.cluster_bonus == 0
-    assert normalise_raw_score(score.base_score + score.cluster_bonus) == 12
-    assert score.vibe_score == 19
+    assert normalise_raw_score(score.base_score + score.cluster_bonus) == 11
+    assert score.vibe_score == 18
     assert score.score_mode == "smart_llm"
     assert score.llm_adjustment == 7
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from .models import ScoreSummary, SignalFinding
+from .signals import SIGNALS
 
 
-MAX_RAW_SCORE = 347.5
+MAX_RAW_SCORE = sum(signal.weight for signal in SIGNALS)
 
 
 def clamp(minimum: int, maximum: int, value: int) -> int:
