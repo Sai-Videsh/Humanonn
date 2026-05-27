@@ -468,6 +468,7 @@ def _capture_component_with_retries(
         "active_image_path": None,
         "focus_image_path": None,
     }
+    attempt: dict[str, Any] = {}
 
     skip_reason = None
     pass_allowed = len(profiles)
@@ -477,23 +478,37 @@ def _capture_component_with_retries(
         """(el) => {
             const rect = el.getBoundingClientRect();
             const isOffscreen = rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth;
-            const isCanvas = el.tagName.toLowerCase() === 'canvas';
             return {
                 tag: el.tagName.toLowerCase(),
                 disabled: el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true',
-                animationsCount: el.getAnimations().length,
                 width: rect.width,
                 height: rect.height,
                 isOffscreen: isOffscreen,
-                hasWebGL: isCanvas && Boolean(el.getContext && (el.getContext('webgl') || el.getContext('experimental-webgl')))
+                hasWebGL: el.tagName.toLowerCase() === 'canvas' && Boolean(el.getContext && (el.getContext('webgl') || el.getContext('experimental-webgl')))
             };
         }""",
         timeout_ms=5000
     )
 
     if classifier is None:
-        skip_reason = "evaluate timed out or failed (likely unrenderable or zero-size)"
-        pass_allowed = 0
+        terminal_log(
+            f"classifier_timeout: component {component['index'] + 1} '{component['label']}'",
+            settings.terminal_logs,
+        )
+        attempt["classifier_timeout"] = True
+        attempt["screen"] = {
+            "isConnected": True,
+            "isVisible": True,
+            "sizeOk": True,
+            "inViewport": True,
+            "covered": False,
+            "disabled": False,
+            "pointerEvents": "auto",
+            "clickable": component["kind"] in {"button", "link", "input"},
+            "interactable": True,
+            "width": component.get("width", 0),
+            "height": component.get("height", 0),
+        }
     else:
         if classifier["tag"] in ("video", "canvas", "iframe"):
             skip_reason = f"tag is {classifier['tag']}"
@@ -513,8 +528,10 @@ def _capture_component_with_retries(
         elif consecutive_timeouts >= 2:
             skip_reason = "consecutive section timeouts"
             pass_allowed = 0
-        elif classifier["animationsCount"] > 0:
-            skip_reason = "element has active animations (single pass limit)"
+
+    if pass_allowed > 0 and skip_reason is None:
+        animation_count = _component_animation_count(locator)
+        if animation_count > 0:
             pass_allowed = 1
             page.wait_for_timeout(500)
 
@@ -579,7 +596,6 @@ def _capture_component_with_retries(
             elif is_pass_1:
                 new_consecutive_timeouts = 0
         finally:
-            page.mouse.move(0, 0)
             page.wait_for_timeout(40)
 
     if not record["verified"]:
@@ -706,15 +722,20 @@ def _wait_for_locator_stable(
     stability_checks = int(profile.get("stability_checks", settings.stability_checks))
     stability_wait_ms = int(profile.get("stability_wait_ms", settings.stability_wait_ms))
     for _ in range(stability_checks):
-        box = locator.bounding_box(timeout=5000)
+        try:
+            box = locator.bounding_box(timeout=5000)
+        except Exception:
+            terminal_log("Locator bounding box stability check failed; proceeding with best-effort probe", settings.terminal_logs)
+            return
         if not box:
-            raise RuntimeError("element has no bounding box")
+            terminal_log("Locator bounding box stability check returned no box; proceeding with best-effort probe", settings.terminal_logs)
+            return
         current = {key: float(box[key]) for key in ("x", "y", "width", "height")}
         if previous and all(abs(previous[key] - current[key]) <= 1.5 for key in current):
             return
         previous = current
         page.wait_for_timeout(stability_wait_ms)
-    raise RuntimeError("element did not stabilize in time")
+    terminal_log("Locator did not fully stabilize before probe; proceeding with best-effort probe", settings.terminal_logs)
 
 
 def _settle_page(page: Page, settings: Settings, phase: str, wait_ms: int | None = None) -> None:
@@ -726,6 +747,15 @@ def _settle_page(page: Page, settings: Settings, phase: str, wait_ms: int | None
 def _component_screen_state(locator: Locator) -> dict[str, Any]:
     result = _safe_locator_evaluate(locator, _COMPONENT_SCREEN_SCRIPT)
     return result if result is not None else {"isConnected": True, "isVisible": False}
+
+
+def _component_animation_count(locator: Locator) -> int:
+    result = _safe_locator_evaluate(locator, "(el) => el.getAnimations().length")
+    if isinstance(result, int):
+        return result
+    if isinstance(result, float) and result.is_integer():
+        return int(result)
+    return 0
 
 
 
