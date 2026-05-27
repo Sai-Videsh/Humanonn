@@ -18,7 +18,6 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("url", help="Deployed URL to audit.")
     scan.add_argument("--json", dest="json_path", help="Write the full report JSON to this path.")
     scan.add_argument("--all", action="store_true", help="Show clear and flagged findings in console output.")
-    scan.add_argument("--no-llm", action="store_true", help="Skip Groq orchestration and use deterministic rules only.")
     scan.add_argument("--quiet", action="store_true", help="Disable scan progress logs in the terminal.")
 
     return parser
@@ -36,7 +35,7 @@ def main() -> None:
         settings = replace(settings, terminal_logs=False)
     agent = HumanonnAgent(settings)
     try:
-        report = agent.scan(args.url, use_llm=not args.no_llm)
+        report = agent.scan(args.url)
     except RuntimeError as exc:
         parser.exit(1, f"Humanonn scan failed: {exc}\n")
 

@@ -22,6 +22,7 @@ def finding(
         id=signal.id,
         name=signal.name,
         tier=signal.tier,
+        bucket=signal.bucket,
         weight=signal.weight,
         flagged=flagged,
         confidence=confidence if flagged else 0.0,

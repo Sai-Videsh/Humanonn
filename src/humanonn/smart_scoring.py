@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import math
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from humanonn.llm_clients import ModelRouter
 from humanonn.models import AuditReport, AuditSnapshot, SignalFinding
 from humanonn.scoring import score_findings
-from humanonn.signals import SIGNALS
+from humanonn.signals import SIGNAL_BY_ID
 
 
 PROMPT_ROOT = Path(__file__).resolve().parents[2] / "prompts"
@@ -34,9 +35,25 @@ def run_smart_scoring(
     base_report: AuditReport,
     router: ModelRouter,
 ) -> AuditReport:
+    if not 38 <= base_report.score.vibe_score <= 52:
+        report = replace(base_report)
+        report.agent_notes = [
+            *base_report.agent_notes,
+            "Skipped smart scoring because the deterministic score was outside the 38-52 borderline window.",
+        ]
+        return report
+
     artifact_root = Path(snapshot.raw.get("artifact_root", "")) if snapshot.raw.get("artifact_root") else None
     manifest = _load_manifest(snapshot.raw.get("manifest_path"))
     evidence_pack = _build_evidence_pack(snapshot, base_report.findings, manifest)
+
+    if not evidence_pack["ambiguous_signals"]:
+        report = replace(base_report)
+        report.agent_notes = [
+            *base_report.agent_notes,
+            "Skipped smart scoring because no ambiguous signals fell in the 0.4-0.7 confidence review band.",
+        ]
+        return report
 
     ambiguity_result, ambiguity_candidate, ambiguity_attempts = _run_ambiguity(router, evidence_pack)
     vision_result, vision_candidate, vision_attempts = _run_vision(router, snapshot, evidence_pack)
@@ -180,7 +197,7 @@ def _run_aggregator(
     prompt = (PROMPT_ROOT / "smart_score.md").read_text(encoding="utf-8")
     payload = {
         "site": evidence_pack["site"],
-        "deterministic_findings": evidence_pack["base_findings"],
+        "deterministic_findings": evidence_pack["ambiguous_signals"],
         "artifact_summary": evidence_pack["artifact_summary"],
         "ambiguity_result": ambiguity_result,
         "vision_result": vision_result,
@@ -201,6 +218,7 @@ def _build_evidence_pack(
             "id": finding.id,
             "name": finding.name,
             "tier": finding.tier,
+            "bucket": finding.bucket,
             "flagged": finding.flagged,
             "confidence": finding.confidence,
             "reason": finding.reason,
@@ -263,13 +281,18 @@ def _build_evidence_pack(
     }
     ambiguous_signals = [
         {
-            "id": signal.id,
-            "name": signal.name,
-            "tier": signal.tier,
-            "fix": signal.fix,
+            "id": finding.id,
+            "name": finding.name,
+            "tier": finding.tier,
+            "bucket": finding.bucket,
+            "weight": SIGNAL_BY_ID[finding.id].weight,
+            "confidence": finding.confidence,
+            "flagged": finding.flagged,
+            "reason": finding.reason,
+            "fix": finding.fix,
         }
-        for signal in SIGNALS
-        if signal.kind == "ambiguous"
+        for finding in findings
+        if SIGNAL_BY_ID[finding.id].kind == "ambiguous" and 0.4 <= finding.confidence <= 0.7
     ]
     site_signature = _site_signature(site, base_findings, artifact_summary)
     return {
@@ -296,6 +319,7 @@ def _merge_findings(
             id=current.id,
             name=current.name,
             tier=current.tier,
+            bucket=current.bucket,
             weight=current.weight,
             flagged=bool(payload.get("flagged", current.flagged)),
             confidence=float(payload.get("confidence", current.confidence if current.flagged else 0.0)),

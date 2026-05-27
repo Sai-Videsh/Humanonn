@@ -3,6 +3,27 @@ from __future__ import annotations
 from .models import ScoreSummary, SignalFinding
 
 
+MAX_RAW_SCORE = 347.5
+
+
+def clamp(minimum: int, maximum: int, value: int) -> int:
+    return max(minimum, min(maximum, value))
+
+
+def normalise_raw_score(raw_score: float) -> int:
+    return clamp(0, 100, round((raw_score / MAX_RAW_SCORE) * 100))
+
+
+def get_category(vibe_score: int) -> str:
+    if vibe_score >= 65:
+        return "Fully Vibe Coded"
+    if vibe_score >= 40:
+        return "Slight Dev Effort"
+    if vibe_score >= 16:
+        return "Decent Dev Effort"
+    return "Human Built"
+
+
 def score_findings(
     findings: list[SignalFinding],
     score_mode: str = "deterministic",
@@ -17,12 +38,12 @@ def score_findings(
     cluster_bonus = 0
     if tier_counts[1] >= 3:
         cluster_bonus += 15
-    if tier_counts[4] >= 4:
-        cluster_bonus += 20
-    if tier_counts[1] > 0 and tier_counts[4] > 0:
+    if tier_counts[1] >= 1 and tier_counts[4] >= 1:
         cluster_bonus += 10
 
-    vibe_score = min(100, max(0, round(base_score + cluster_bonus + llm_adjustment)))
+    raw_score = base_score + cluster_bonus
+    normalised_score = normalise_raw_score(raw_score)
+    vibe_score = clamp(0, 100, round(normalised_score + llm_adjustment))
     return ScoreSummary(
         vibe_score=vibe_score,
         humanness_score=100 - vibe_score,

@@ -6,6 +6,7 @@ from typing import Any, Literal
 
 SignalTier = Literal[1, 2, 3, 4]
 SignalKind = Literal["deterministic", "ambiguous"]
+SignalBucket = Literal["origin", "polish"]
 
 
 @dataclass(frozen=True)
@@ -14,6 +15,7 @@ class SignalDefinition:
     tier: SignalTier
     name: str
     kind: SignalKind
+    bucket: SignalBucket
     weight: float
     fix: str
 
@@ -23,6 +25,7 @@ class SignalFinding:
     id: str
     name: str
     tier: SignalTier
+    bucket: SignalBucket
     weight: float
     flagged: bool
     confidence: float

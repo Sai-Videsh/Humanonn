@@ -24,8 +24,8 @@ class HumanonnAgent:
         self.registry = ToolRegistry(settings)
         self.router = ModelRouter(settings)
 
-    def scan(self, url: str, use_llm: bool = True) -> AuditReport:
-        if use_llm and self.settings.llm_enabled:
+    def scan(self, url: str) -> AuditReport:
+        if self.settings.llm_enabled:
             try:
                 return self._scan_with_primary_orchestrator(url)
             except Exception as exc:
@@ -34,7 +34,7 @@ class HumanonnAgent:
                 report.agent_notes.append(f"{candidate.bug_tag} failed; used deterministic fallback: {exc}")
                 return report
         report = self._scan_deterministic(url)
-        if use_llm and not self.settings.llm_enabled:
+        if not self.settings.llm_enabled:
             report.agent_notes.append("Main orchestrator API key is not configured; used deterministic scanner.")
         return report
 

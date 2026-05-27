@@ -40,12 +40,6 @@ Save JSON:
 python -m humanonn scan https://example.com --json reports/example.json
 ```
 
-Skip the LLM orchestrator even when a Groq key is configured:
-
-```bash
-python -m humanonn scan https://example.com --no-llm
-```
-
 ## Project Stages
 
 See [docs/stages.md](docs/stages.md).
