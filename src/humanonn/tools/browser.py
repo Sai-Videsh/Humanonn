@@ -37,6 +37,7 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
                 args=["--enable-unsafe-swiftshader"],
             )
             page = browser.new_page(viewport={"width": 1440, "height": 1200})
+            page.route("**/*", lambda route, request: route.abort() if request.resource_type in ("media", "video") or request.url.endswith((".webm", ".mp4")) or ("storage.googleapis.com" in request.url and "video" in request.url) else route.continue_())
             _attach_page_logs(page, settings)
 
             terminal_log("Navigating to page with staged readiness checks", settings.terminal_logs)
@@ -70,6 +71,7 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
                     "manifest_path": str(manifest_path),
                     "main_image_path": str(main_image_path),
                     "section_artifact_count": len(manifest.get("sections", [])),
+                    "needs_vision_override": bool(manifest.get("needs_vision_override")),
                 }
             )
             _log_snapshot_summary(data, settings)
@@ -255,7 +257,7 @@ def _overview_scroll_sections(page: Page, sections: list[dict[str, Any]], settin
         locator = page.locator(f"[data-humanonn-section-id='{section['id']}']").first
         try:
             _scroll_locator_into_focus(page, locator, settings)
-            locator.evaluate("(el, index) => el.setAttribute('data-humanonn-scroll-index', String(index))", section["index"])
+            _safe_locator_evaluate(locator, "(el, index) => el.setAttribute('data-humanonn-scroll-index', String(index))", section["index"])
             terminal_log(f"Overview section {section['index'] + 1}/{len(sections)}: {section['label']}", settings.terminal_logs)
         except (PlaywrightError, RuntimeError) as exc:
             terminal_log(f"Skipped overview section {section['index'] + 1}: {_summarize_error(exc)}", settings.terminal_logs)
@@ -273,6 +275,7 @@ def _capture_section_artifacts(
         "artifact_root": str(artifact_root),
         "main_image_path": str(artifact_root / "main.png"),
         "sections": [],
+        "needs_vision_override": False,
     }
     for section in sections:
         section_dir = artifact_root / f"section_{section['index'] + 1:03d}_{_slugify(section['label'])}"
@@ -281,13 +284,25 @@ def _capture_section_artifacts(
         try:
             _scroll_locator_into_focus(page, locator, settings)
             section_image = section_dir / "section.png"
-            locator.screenshot(path=str(section_image))
+            locator.screenshot(path=str(section_image), timeout=5000)
             terminal_log(
                 f"Capturing section {section['index'] + 1}/{len(sections)}: {section['label']}",
                 settings.terminal_logs,
             )
             components = _discover_components(page, section["id"], settings)
-            component_manifest = _capture_components(page, section, components, section_dir, settings)
+            if not components:
+                terminal_log(
+                    f"Section {section['index'] + 1} returned 0 components; using synthetic section style sample",
+                    settings.terminal_logs,
+                )
+                component_manifest = [
+                    _build_section_synthetic_component(page, locator, section, section_dir, settings)
+                ]
+                manifest["needs_vision_override"] = True
+            else:
+                component_manifest = _capture_components(page, section, components, section_dir, settings)
+                if any(component.get("needs_vision_override") for component in component_manifest):
+                    manifest["needs_vision_override"] = True
             manifest["sections"].append(
                 {
                     **section,
@@ -317,6 +332,55 @@ def _discover_components(page: Page, section_id: str, settings: Settings) -> lis
     return components
 
 
+def _build_section_synthetic_component(
+    page: Page,
+    locator: Locator,
+    section: dict[str, Any],
+    section_dir: Path,
+    settings: Settings,
+) -> dict[str, Any]:
+    component_dir = section_dir / f"component_001_section_{_slugify(section['label'])}"
+    component_dir.mkdir(parents=True, exist_ok=True)
+    style = _safe_locator_evaluate(locator, _SECTION_SYNTHETIC_STYLE_SCRIPT) or {}
+    record: dict[str, Any] = {
+        "id": f"{section['id']}-synthetic-section",
+        "index": 0,
+        "kind": "section",
+        "label": section["label"],
+        "text": section.get("label", ""),
+        "width": int(style.get("width") or section.get("width") or 0),
+        "height": int(style.get("height") or section.get("height") or 0),
+        "className": "synthetic-section",
+        "styles": style,
+        "patternKey": f"section|{section['id']}|synthetic",
+        "duplicateCount": 1,
+        "interactableHint": False,
+        "synthetic": True,
+        "status": "synthetic",
+        "verified": False,
+        "section_id": section["id"],
+        "path": str(component_dir),
+        "attempts": [],
+        "before_image_path": None,
+        "hover_image_path": None,
+        "active_image_path": None,
+        "focus_image_path": None,
+        "unverified_reason": "section had no discoverable child components",
+        "needs_vision_override": True,
+        "before_style": style,
+        "hover_style": style,
+        "active_style": style,
+        "hover_changed": False,
+        "active_changed": False,
+        "hover_diff": [],
+        "active_diff": [],
+    }
+    metadata_path = component_dir / "metadata.json"
+    metadata_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    record["metadata_path"] = str(metadata_path)
+    return record
+
+
 def _capture_components(
     page: Page,
     section: dict[str, Any],
@@ -326,10 +390,59 @@ def _capture_components(
 ) -> list[dict[str, Any]]:
     manifest: list[dict[str, Any]] = []
     profiles = _build_pass_profiles(settings)
-    for component in components:
-        record = _capture_component_with_retries(page, section, component, section_dir, settings, profiles)
+    consecutive_timeouts = 0
+    for index, component in enumerate(components):
+        record, next_timeouts = _capture_component_with_retries(page, section, component, section_dir, settings, profiles, consecutive_timeouts)
+        consecutive_timeouts = next_timeouts
         manifest.append(record)
+        if consecutive_timeouts >= 2:
+            for remaining_component in components[index + 1 :]:
+                manifest.append(
+                    _build_unverified_component_record(
+                        section,
+                        remaining_component,
+                        section_dir,
+                        settings,
+                        "consecutive section timeouts",
+                    )
+                )
+            break
     return manifest
+
+
+def _build_unverified_component_record(
+    section: dict[str, Any],
+    component: dict[str, Any],
+    section_dir: Path,
+    settings: Settings,
+    reason: str,
+    needs_vision_override: bool = False,
+) -> dict[str, Any]:
+    component_dir = section_dir / f"component_{component['index'] + 1:03d}_{component['kind']}_{_slugify(component['label'])}"
+    component_dir.mkdir(parents=True, exist_ok=True)
+    record: dict[str, Any] = {
+        **component,
+        "section_id": section["id"],
+        "path": str(component_dir),
+        "status": "unverified",
+        "verified": False,
+        "attempts": [],
+        "before_image_path": None,
+        "hover_image_path": None,
+        "active_image_path": None,
+        "focus_image_path": None,
+        "unverified_reason": reason,
+    }
+    if needs_vision_override:
+        record["needs_vision_override"] = True
+    metadata_path = component_dir / "metadata.json"
+    metadata_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    record["metadata_path"] = str(metadata_path)
+    terminal_log(
+        f"Marked component {component['index'] + 1} in {section['label']} as unverified: {reason}",
+        settings.terminal_logs,
+    )
+    return record
 
 
 def _capture_component_with_retries(
@@ -339,10 +452,10 @@ def _capture_component_with_retries(
     section_dir: Path,
     settings: Settings,
     profiles: list[dict[str, Any]],
-) -> dict[str, Any]:
-    component_dir = section_dir / f"component_{component['index'] + 1:03d}_{component['kind']}_{_slugify(component['label'])}"
-    component_dir.mkdir(parents=True, exist_ok=True)
+    consecutive_timeouts: int = 0,
+) -> tuple[dict[str, Any], int]:
     locator = page.locator(f"[data-humanonn-component-id='{component['id']}']").first
+    component_dir = section_dir / f"component_{component['index'] + 1:03d}_{component['kind']}_{_slugify(component['label'])}"
     record: dict[str, Any] = {
         **component,
         "section_id": section["id"],
@@ -356,9 +469,84 @@ def _capture_component_with_retries(
         "focus_image_path": None,
     }
 
-    for profile in profiles:
+    skip_reason = None
+    pass_allowed = len(profiles)
+
+    classifier = _safe_locator_evaluate(
+        locator,
+        """(el) => {
+            const rect = el.getBoundingClientRect();
+            const isOffscreen = rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth;
+            const isCanvas = el.tagName.toLowerCase() === 'canvas';
+            return {
+                tag: el.tagName.toLowerCase(),
+                disabled: el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true',
+                animationsCount: el.getAnimations().length,
+                width: rect.width,
+                height: rect.height,
+                isOffscreen: isOffscreen,
+                hasWebGL: isCanvas && Boolean(el.getContext && (el.getContext('webgl') || el.getContext('experimental-webgl')))
+            };
+        }""",
+        timeout_ms=5000
+    )
+
+    if classifier is None:
+        skip_reason = "evaluate timed out or failed (likely unrenderable or zero-size)"
+        pass_allowed = 0
+    else:
+        if classifier["tag"] in ("video", "canvas", "iframe"):
+            skip_reason = f"tag is {classifier['tag']}"
+            pass_allowed = 0
+        elif classifier.get("hasWebGL"):
+            skip_reason = "webgl canvas"
+            pass_allowed = 0
+        elif classifier["width"] == 0 or classifier["height"] == 0:
+            skip_reason = "zero-size element"
+            pass_allowed = 0
+        elif classifier["isOffscreen"]:
+            skip_reason = "element is off-screen"
+            pass_allowed = 0
+        elif classifier["disabled"]:
+            skip_reason = "element is disabled"
+            pass_allowed = 0
+        elif consecutive_timeouts >= 2:
+            skip_reason = "consecutive section timeouts"
+            pass_allowed = 0
+        elif classifier["animationsCount"] > 0:
+            skip_reason = "element has active animations (single pass limit)"
+            pass_allowed = 1
+            page.wait_for_timeout(500)
+
+    if pass_allowed == 0 and skip_reason:
+        return (
+            _build_unverified_component_record(
+                section,
+                component,
+                section_dir,
+                settings,
+                skip_reason,
+                needs_vision_override=(
+                    skip_reason.startswith("tag is canvas")
+                    or skip_reason.startswith("tag is video")
+                    or skip_reason == "webgl canvas"
+                ),
+            ),
+            consecutive_timeouts,
+        )
+
+    new_consecutive_timeouts = consecutive_timeouts
+
+
+    for i, profile in enumerate(profiles[:pass_allowed]):
+        is_pass_1 = (i == 0)
         attempt: dict[str, Any] = {"pass": profile["name"]}
         try:
+            try:
+                box = locator.bounding_box(timeout=5000) or {}
+                terminal_log(f"Probe start: component {component['index'] + 1} '{component['label']}' {box}", settings.terminal_logs)
+            except Exception:
+                pass
             _scroll_locator_into_focus(page, locator, settings, profile)
             screen = _component_screen_state(locator)
             attempt["screen"] = screen
@@ -369,20 +557,27 @@ def _capture_component_with_retries(
                 record["attempts"].append(attempt)
                 continue
 
-            _capture_component_states(page, locator, component, component_dir, record, profile)
+            _capture_component_states(page, locator, component, component_dir, record, profile, settings)
             attempt["status"] = "verified"
             record["status"] = "verified"
             record["verified"] = True
             record["attempts"].append(attempt)
+            new_consecutive_timeouts = 0
             break
         except (PlaywrightError, RuntimeError) as exc:
+            err_msg = _summarize_error(exc)
             attempt["status"] = "retry"
-            attempt["reason"] = _summarize_error(exc)
+            attempt["reason"] = err_msg
             record["attempts"].append(attempt)
             terminal_log(
-                f"Retrying component {component['index'] + 1} in {section['label']} after {profile['name']}: {_summarize_error(exc)}",
+                f"Retrying component {component['index'] + 1} in {section['label']} after {profile['name']}: {err_msg}",
                 settings.terminal_logs,
             )
+            
+            if is_pass_1 and "Timeout" in err_msg:
+                new_consecutive_timeouts += 1
+            elif is_pass_1:
+                new_consecutive_timeouts = 0
         finally:
             page.mouse.move(0, 0)
             page.wait_for_timeout(40)
@@ -396,10 +591,11 @@ def _capture_component_with_retries(
             settings.terminal_logs,
         )
 
+    component_dir = Path(record["path"])
     metadata_path = component_dir / "metadata.json"
     metadata_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
     record["metadata_path"] = str(metadata_path)
-    return record
+    return record, new_consecutive_timeouts
 
 
 def _capture_component_states(
@@ -409,10 +605,11 @@ def _capture_component_states(
     component_dir: Path,
     record: dict[str, Any],
     profile: dict[str, Any],
+    settings: Settings,
 ) -> None:
-    before_style = locator.evaluate(_INTERACTION_STYLE_SCRIPT)
+    before_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
     before_path = component_dir / "before.png"
-    locator.screenshot(path=str(before_path))
+    locator.screenshot(path=str(before_path), timeout=5000)
     record["before_image_path"] = str(before_path)
 
     hover_style = before_style
@@ -421,9 +618,25 @@ def _capture_component_states(
         hover_path = component_dir / "hover.png"
         locator.hover(timeout=profile["hover_timeout_ms"], force=True)
         page.wait_for_timeout(profile["interaction_wait_ms"])
-        hover_style = locator.evaluate(_INTERACTION_STYLE_SCRIPT)
+        hover_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
         hover_diff = _diff_styles(before_style, hover_style)
-        locator.screenshot(path=str(hover_path))
+        if not hover_diff:
+            box = locator.bounding_box(timeout=5000)
+            if box:
+                terminal_log(
+                    f"hover_no_diff: component {component['index'] + 1} '{component['label']}' primary hover; retrying with center-point hover",
+                    settings.terminal_logs,
+                )
+                page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+                page.wait_for_timeout(profile["interaction_wait_ms"])
+                hover_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
+                hover_diff = _diff_styles(before_style, hover_style)
+            if not hover_diff:
+                terminal_log(
+                    f"hover_no_diff: component {component['index'] + 1} '{component['label']}'",
+                    settings.terminal_logs,
+                )
+        locator.screenshot(path=str(hover_path), timeout=5000)
         record["hover_image_path"] = str(hover_path)
 
     active_style = hover_style
@@ -432,26 +645,27 @@ def _capture_component_states(
         focus_path = component_dir / "focus.png"
         locator.click(timeout=profile["hover_timeout_ms"])
         page.wait_for_timeout(profile["interaction_wait_ms"])
-        active_style = locator.evaluate(_INTERACTION_STYLE_SCRIPT)
+        active_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
         active_diff = _diff_styles(before_style, active_style)
-        locator.screenshot(path=str(focus_path))
+        locator.screenshot(path=str(focus_path), timeout=5000)
         record["focus_image_path"] = str(focus_path)
     else:
         active_path = component_dir / "active.png"
-        box = locator.bounding_box()
+        box = locator.bounding_box(timeout=5000)
         if not box:
             raise RuntimeError("element has no bounding box for active probe")
         page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         page.mouse.down()
         page.wait_for_timeout(profile["active_wait_ms"])
-        active_style = locator.evaluate(_INTERACTION_STYLE_SCRIPT)
+        active_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
         active_diff = _diff_styles(before_style, active_style)
-        locator.screenshot(path=str(active_path))
+        locator.screenshot(path=str(active_path), timeout=5000)
         page.mouse.up()
         page.wait_for_timeout(profile["interaction_wait_ms"])
         record["active_image_path"] = str(active_path)
 
-    locator.evaluate(
+    _safe_locator_evaluate(
+        locator,
         """(el, payload) => {
             el.setAttribute('data-humanonn-hover-effect', payload.hoverChanged ? 'true' : 'false');
             el.setAttribute('data-humanonn-hover-diff', payload.hoverDiff.join('|'));
@@ -476,7 +690,7 @@ def _capture_component_states(
 
 
 def _scroll_locator_into_focus(page: Page, locator: Locator, settings: Settings, profile: dict[str, Any] | None = None) -> None:
-    locator.evaluate("el => el.scrollIntoView({ block: 'center', inline: 'nearest' })")
+    _safe_locator_evaluate(locator, "(el) => el.scrollIntoView({ block: 'center', inline: 'nearest' })")
     _settle_page(page, settings, "scroll-into-view", wait_ms=(profile or {}).get("render_wait_ms"))
     _wait_for_locator_stable(page, locator, settings, profile)
 
@@ -492,7 +706,7 @@ def _wait_for_locator_stable(
     stability_checks = int(profile.get("stability_checks", settings.stability_checks))
     stability_wait_ms = int(profile.get("stability_wait_ms", settings.stability_wait_ms))
     for _ in range(stability_checks):
-        box = locator.bounding_box()
+        box = locator.bounding_box(timeout=5000)
         if not box:
             raise RuntimeError("element has no bounding box")
         current = {key: float(box[key]) for key in ("x", "y", "width", "height")}
@@ -510,7 +724,22 @@ def _settle_page(page: Page, settings: Settings, phase: str, wait_ms: int | None
 
 
 def _component_screen_state(locator: Locator) -> dict[str, Any]:
-    return locator.evaluate(_COMPONENT_SCREEN_SCRIPT)
+    result = _safe_locator_evaluate(locator, _COMPONENT_SCREEN_SCRIPT)
+    return result if result is not None else {"isConnected": True, "isVisible": False}
+
+
+
+def _safe_locator_evaluate(locator: Locator, script: str, args: Any = None, timeout_ms: int = 5000) -> Any:
+    try:
+        wrapped = f"""
+        (el, payload) => Promise.race([
+            (async () => {{ return ({script})(el, payload); }})(),
+            new Promise(resolve => setTimeout(() => resolve(null), {timeout_ms}))
+        ])
+        """
+        return locator.evaluate(wrapped, args, timeout=timeout_ms + 1000)
+    except Exception:
+        return None
 
 
 def _component_readiness_reason(component: dict[str, Any], screen: dict[str, Any]) -> str | None:
@@ -1002,6 +1231,28 @@ _INTERACTION_STYLE_SCRIPT = """
     textDecorationColor: cs.textDecorationColor,
     outlineColor: cs.outlineColor
   };
+}
+"""
+
+
+_SECTION_SYNTHETIC_STYLE_SCRIPT = """
+(el) => {
+    const rect = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    return {
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        backgroundColor: cs.backgroundColor,
+        backgroundImage: cs.backgroundImage,
+        borderRadius: cs.borderRadius,
+        color: cs.color,
+        fontFamily: cs.fontFamily,
+        fontSize: cs.fontSize,
+        transitionDuration: cs.transitionDuration,
+        transitionTimingFunction: cs.transitionTimingFunction,
+        boxShadow: cs.boxShadow,
+        backdropFilter: cs.backdropFilter || cs.webkitBackdropFilter || ""
+    };
 }
 """
 

@@ -95,5 +95,11 @@ class HumanonnAgent:
             raise RuntimeError("LLM scoring requires a completed crawl snapshot.")
         terminal_log("Building deterministic baseline before smart scoring", self.settings.terminal_logs)
         base_report = self.registry.generate_report()
+        force_vision_override = bool(self.registry.snapshot.raw.get("needs_vision_override")) or any(
+            finding.id == "dynamic_injected_styles" and finding.flagged for finding in base_report.findings
+        )
+        if force_vision_override:
+            self.registry.snapshot.raw["needs_vision_override"] = True
+            terminal_log("Vision override enabled from crawl signals; forcing smart scoring vision pass", self.settings.terminal_logs)
         terminal_log("Running smart LLM scoring pipeline", self.settings.terminal_logs)
         return run_smart_scoring(self.registry.snapshot, base_report, self.router)

@@ -31,10 +31,30 @@ ARCHETYPES = {
 
 VISION_OVERRIDE_SIGNAL_IDS = {
     "all_centered_headings",
+    "bento_grid",
     "canvas_rendered_ui",
     "canvas_webgl_hero_background",
     "dynamic_injected_styles",
+    "glassmorphism",
+    "gradient_text",
+    "mesh_gradient",
+    "pill_buttons",
+    "purple_accent",
     "stock_image_pattern",
+}
+
+VISION_PATTERN_ALIASES: dict[str, str] = {
+    "bento grid": "bento_grid",
+    "bento grid layout": "bento_grid",
+    "glassmorphism": "glassmorphism",
+    "glassmorphism cards": "glassmorphism",
+    "frosted glass": "glassmorphism",
+    "gradient text": "gradient_text",
+    "purple accent": "purple_accent",
+    "violet accent": "purple_accent",
+    "mesh gradient": "mesh_gradient",
+    "aurora blob": "mesh_gradient",
+    "pill buttons": "pill_buttons",
 }
 
 
@@ -43,11 +63,12 @@ def run_smart_scoring(
     base_report: AuditReport,
     router: ModelRouter,
 ) -> AuditReport:
-    if not 38 <= base_report.score.vibe_score <= 52:
+    vision_override = bool(snapshot.raw.get("needs_vision_override"))
+    if not vision_override and not 38 <= base_report.score.vibe_score <= 52:
         report = replace(base_report)
         report.agent_notes = [
             *base_report.agent_notes,
-            "Skipped smart scoring because the deterministic score was outside the 38-52 borderline window.",
+            "Skipped smart scoring because the deterministic score was outside the 38-52 borderline window and no vision override was requested.",
         ]
         return report
 
@@ -55,7 +76,7 @@ def run_smart_scoring(
     manifest = _load_manifest(snapshot.raw.get("manifest_path"))
     evidence_pack = _build_evidence_pack(snapshot, base_report.findings, manifest)
 
-    if not evidence_pack["ambiguous_signals"]:
+    if not evidence_pack["ambiguous_signals"] and not vision_override:
         report = replace(base_report)
         report.agent_notes = [
             *base_report.agent_notes,
@@ -369,10 +390,11 @@ def _merge_findings(
 
 def _vision_signal_overrides(vision_result: dict[str, Any]) -> list[dict[str, Any]]:
     confirmations = vision_result.get("signal_confirmations", []) if isinstance(vision_result, dict) else []
+    additional_patterns = vision_result.get("additional_patterns", []) if isinstance(vision_result, dict) else []
     overrides: list[dict[str, Any]] = []
     for item in confirmations:
         signal_id = item.get("signal_id")
-        if signal_id not in VISION_OVERRIDE_SIGNAL_IDS:
+        if signal_id not in VISION_OVERRIDE_SIGNAL_IDS and signal_id not in SIGNAL_BY_ID:
             continue
         verdict = str(item.get("verdict", "")).lower()
         if verdict not in {"confirmed", "denied", "uncertain"}:
@@ -393,6 +415,27 @@ def _vision_signal_overrides(vision_result: dict[str, Any]) -> list[dict[str, An
                 "confidence": confidence,
                 "source": "vision",
                 "reason": item.get("visual_evidence") or item.get("reason") or "Vision confirmation override.",
+                "fix": signal.fix,
+            }
+        )
+    for item in additional_patterns:
+        label = str(item.get("label", "")).strip().lower()
+        signal_id = str(item.get("signal_id", "")).strip()
+        if not signal_id:
+            signal_id = VISION_PATTERN_ALIASES.get(label, "")
+        if signal_id not in SIGNAL_BY_ID:
+            continue
+        signal = SIGNAL_BY_ID[signal_id]
+        severity = str(item.get("severity", "medium")).lower()
+        confidence = 0.85 if severity == "high" else 0.65 if severity == "medium" else 0.5
+        overrides.append(
+            {
+                "id": signal_id,
+                "bucket": signal.bucket,
+                "flagged": True,
+                "confidence": confidence,
+                "source": "vision_additional_pattern",
+                "reason": item.get("reason") or f"Vision described '{item.get('label', signal.name)}' as an additional pattern.",
                 "fix": signal.fix,
             }
         )
