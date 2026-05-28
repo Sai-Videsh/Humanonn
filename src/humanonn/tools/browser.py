@@ -17,6 +17,17 @@ from humanonn.models import AuditSnapshot
 from humanonn.runtime import terminal_log
 
 
+_NOISE_REQUEST_HOST_TOKENS = (
+    "sentry.io",
+    "sentry-cdn.com",
+    "google-analytics.com",
+    "googletagmanager.com",
+    "growthbook.io",
+    "tiktok.com",
+    "analytics.google.com",
+)
+
+
 def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
     screenshot_path = _screenshot_path(url, settings.screenshot_dir)
     artifact_root = _artifact_root(url, settings)
@@ -37,7 +48,7 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
                 args=["--enable-unsafe-swiftshader"],
             )
             page = browser.new_page(viewport={"width": 1440, "height": 1200})
-            page.route("**/*", lambda route, request: route.abort() if request.resource_type in ("media", "video") or request.url.endswith((".webm", ".mp4")) or ("storage.googleapis.com" in request.url and "video" in request.url) else route.continue_())
+            page.route("**/*", lambda route, request: _handle_routed_request(route, request))
             _attach_page_logs(page, settings)
 
             terminal_log("Navigating to page with staged readiness checks", settings.terminal_logs)
@@ -59,6 +70,8 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
             manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
             terminal_log(f"Artifact manifest written to {manifest_path}", settings.terminal_logs)
 
+            for section in sections:
+                _retarget_section_locator(page, section)
             page.evaluate("window.scrollTo(0, 0)")
             _settle_page(page, settings, "before-snapshot")
             page.evaluate("document.fonts ? document.fonts.ready : Promise.resolve()")
@@ -202,11 +215,28 @@ def _attach_page_logs(page: Page, settings: Settings) -> None:
     page.on("pageerror", lambda exc: terminal_log(f"browser page error: {exc}", settings.terminal_logs))
     page.on(
         "requestfailed",
-        lambda request: terminal_log(
+        lambda request: None if _is_noise_request(request.url) else terminal_log(
             f"request failed: {request.method} {request.url} ({request.failure})",
             settings.terminal_logs,
         ),
     )
+
+
+def _handle_routed_request(route: Any, request: Any) -> None:
+    if (
+        request.resource_type in ("media", "video")
+        or request.url.endswith((".webm", ".mp4"))
+        or ("storage.googleapis.com" in request.url and "video" in request.url)
+        or _is_noise_request(request.url)
+    ):
+        route.abort()
+        return
+    route.continue_()
+
+
+def _is_noise_request(url: str) -> bool:
+    lowered = url.lower()
+    return any(token in lowered for token in _NOISE_REQUEST_HOST_TOKENS)
 
 
 def _navigate_page(page: Page, url: str, settings: Settings) -> None:
@@ -288,7 +318,7 @@ def _discover_sections(page: Page, settings: Settings) -> list[dict[str, Any]]:
 def _overview_scroll_sections(page: Page, sections: list[dict[str, Any]], settings: Settings) -> None:
     terminal_log("Overview pass: scrolling section by section to trigger lazy rendering", settings.terminal_logs)
     for section in sections:
-        locator = page.locator(f"[data-humanonn-section-id='{section['id']}']").first
+        locator = _retarget_section_locator(page, section)
         try:
             _scroll_locator_into_focus(page, locator, settings)
             _safe_locator_evaluate(locator, "(el, index) => el.setAttribute('data-humanonn-scroll-index', String(index))", section["index"])
@@ -314,7 +344,7 @@ def _capture_section_artifacts(
     for section in sections:
         section_dir = artifact_root / f"section_{section['index'] + 1:03d}_{_slugify(section['label'])}"
         section_dir.mkdir(parents=True, exist_ok=True)
-        locator = page.locator(f"[data-humanonn-section-id='{section['id']}']").first
+        locator = _retarget_section_locator(page, section)
         try:
             _scroll_locator_into_focus(page, locator, settings)
             section_image = section_dir / "section.png"
@@ -499,6 +529,8 @@ def _capture_component_with_retries(
     if not position:
         position = _component_position(locator)
     use_direct_probe = position in {"fixed", "sticky"}
+    if use_direct_probe:
+        locator = _retarget_direct_probe_locator(page, component)
     record: dict[str, Any] = {
         **component,
         "section_id": section["id"],
@@ -613,9 +645,16 @@ def _capture_component_with_retries(
                 _probe_directly_at_current_position(page, locator, settings, profile)
             else:
                 _scroll_locator_into_focus(page, locator, settings, profile)
-            screen = _component_screen_state(locator)
+            screen = _component_screen_state(locator, use_direct_probe=use_direct_probe)
             attempt["screen"] = screen
             readiness_reason = _component_readiness_reason(component, screen)
+            if readiness_reason == "element not visible" and use_direct_probe:
+                try:
+                    box = locator.bounding_box(timeout=2000)
+                except Exception:
+                    box = None
+                if box and box.get("width", 0) >= 20 and box.get("height", 0) >= 20:
+                    readiness_reason = None
             if readiness_reason is not None:
                 attempt["status"] = "retry"
                 attempt["reason"] = readiness_reason
@@ -740,12 +779,16 @@ def _capture_component_states(
         box = locator.bounding_box(timeout=5000)
         if not box:
             raise RuntimeError("element has no bounding box for active probe")
-        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        probe_x = box["x"] + box["width"] / 2
+        probe_y = box["y"] + box["height"] / 2
+        page.mouse.move(probe_x, probe_y)
         page.mouse.down()
         page.wait_for_timeout(profile["active_wait_ms"])
         active_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
         active_diff = _diff_styles(before_style, active_style)
         locator.screenshot(path=str(active_path), timeout=5000)
+        # Release away from the element so probing does not complete a real click/navigation.
+        page.mouse.move(max(2, probe_x - min(80, box["width"] / 2 + 20)), max(2, probe_y - min(80, box["height"] / 2 + 20)))
         page.mouse.up()
         page.wait_for_timeout(profile["interaction_wait_ms"])
         record["active_image_path"] = str(active_path)
@@ -784,6 +827,136 @@ def _scroll_locator_into_focus(page: Page, locator: Locator, settings: Settings,
 def _probe_directly_at_current_position(page: Page, locator: Locator, settings: Settings, profile: dict[str, Any] | None = None) -> None:
     # For fixed/sticky elements, avoid scroll-induced layout churn and stability waits.
     _settle_page(page, settings, "direct-probe", wait_ms=(profile or {}).get("render_wait_ms"))
+
+
+def _retarget_section_locator(page: Page, section: dict[str, Any]) -> Locator:
+    page.evaluate(
+        """
+        (payload) => {
+            const textOf = (el) => (el.innerText || el.textContent || "").trim().replace(/\\s+/g, " ");
+            const isVisible = (el) => {
+                const rect = el.getBoundingClientRect();
+                const cs = getComputedStyle(el);
+                if (cs.display === "none" || cs.visibility === "hidden") return false;
+                if (Number.parseFloat(cs.opacity || "1") < 0.05) return false;
+                if (rect.width < 280 || rect.height < 120) return false;
+                return true;
+            };
+            const normalize = (value) => String(value || "").toLowerCase().replace(/\\s+/g, " ").trim();
+            const labelTokens = normalize(payload.label).split(" ").filter(Boolean).slice(0, 8);
+            const nodes = [...document.querySelectorAll("main section, section, article, [data-section], footer, main > div")];
+            const candidates = nodes.filter(isVisible);
+            const score = (el) => {
+                const rect = el.getBoundingClientRect();
+                const absTop = rect.top + window.scrollY;
+                const labelNode = el.querySelector("h1,h2,h3,[aria-label],[data-section-title]");
+                const label = normalize(
+                    el.getAttribute("aria-label") ||
+                    el.getAttribute("data-section") ||
+                    (labelNode ? textOf(labelNode) : "") ||
+                    textOf(el).slice(0, 80)
+                );
+                let tokenHits = 0;
+                for (const token of labelTokens) {
+                    if (token && label.includes(token)) tokenHits += 1;
+                }
+                const topDelta = Math.abs(absTop - payload.top);
+                const widthDelta = Math.abs(rect.width - payload.width);
+                const heightDelta = Math.abs(rect.height - payload.height);
+                return [
+                    tokenHits,
+                    topDelta <= 200 ? 1 : 0,
+                    -topDelta,
+                    -widthDelta,
+                    -heightDelta
+                ];
+            };
+            candidates.sort((a, b) => {
+                const sa = score(a);
+                const sb = score(b);
+                for (let i = 0; i < sa.length; i += 1) {
+                    if (sa[i] !== sb[i]) return sb[i] - sa[i];
+                }
+                return 0;
+            });
+            const winner = candidates[0];
+            if (!winner) return;
+            document.querySelectorAll(`[data-humanonn-section-id="${payload.id}"]`).forEach((node) => {
+                if (node !== winner) node.removeAttribute("data-humanonn-section-id");
+            });
+            winner.setAttribute("data-humanonn-section-id", payload.id);
+        }
+        """,
+        section,
+    )
+    return page.locator(f"[data-humanonn-section-id='{section['id']}']").first
+
+
+def _retarget_direct_probe_locator(page: Page, component: dict[str, Any]) -> Locator:
+    payload = {
+        "id": component["id"],
+        "kind": component["kind"],
+        "label": component.get("label", ""),
+        "href": component.get("href", ""),
+    }
+    page.evaluate(
+        """
+        (payload) => {
+            const textOf = (el) => (el.innerText || el.textContent || "").trim().replace(/\\s+/g, " ");
+            const effectivePositionFor = (el) => {
+                let node = el;
+                while (node && node !== document.documentElement) {
+                    const position = getComputedStyle(node).position;
+                    if (position === "fixed" || position === "sticky") return position;
+                    node = node.parentElement;
+                }
+                return getComputedStyle(el).position;
+            };
+            const matchesTarget = (el) => {
+                if (payload.kind === "link") {
+                    const href = new URL(el.href, location.href).pathname.replace(/\\/+$/, "") || "/";
+                    if (payload.href && href !== payload.href) return false;
+                }
+                const label = (el.getAttribute("aria-label") || textOf(el) || "").trim();
+                return label === payload.label;
+            };
+            const score = (el) => {
+                const rect = el.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const inViewport = rect.width >= 20 && rect.height >= 20 && rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
+                const centerInside = centerX >= 0 && centerY >= 0 && centerX <= window.innerWidth && centerY <= window.innerHeight;
+                const topElement = centerInside ? document.elementFromPoint(centerX, centerY) : null;
+                const ownsHit = Boolean(topElement && (topElement === el || el.contains(topElement) || topElement.contains(el)));
+                const effectivePosition = effectivePositionFor(el);
+                return [
+                    ownsHit ? 1 : 0,
+                    (effectivePosition === "fixed" || effectivePosition === "sticky") ? 1 : 0,
+                    inViewport ? 1 : 0,
+                    Math.round(rect.width * rect.height)
+                ];
+            };
+            const selectors = payload.kind === "link" ? "a[href]" : "button,[role='button'],input[type='button'],input[type='submit']";
+            const matches = [...document.querySelectorAll(selectors)].filter(matchesTarget);
+            matches.sort((a, b) => {
+                const sa = score(a);
+                const sb = score(b);
+                for (let i = 0; i < sa.length; i += 1) {
+                    if (sa[i] !== sb[i]) return sb[i] - sa[i];
+                }
+                return 0;
+            });
+            const winner = matches[0];
+            if (!winner) return;
+            document.querySelectorAll(`[data-humanonn-component-id="${payload.id}"]`).forEach((node) => {
+                if (node !== winner) node.removeAttribute("data-humanonn-component-id");
+            });
+            winner.setAttribute("data-humanonn-component-id", payload.id);
+        }
+        """,
+        payload,
+    )
+    return page.locator(f"[data-humanonn-component-id='{component['id']}']").first
 
 
 def _component_position(locator: Locator) -> str | None:
@@ -836,9 +1009,30 @@ def _settle_page(page: Page, settings: Settings, phase: str, wait_ms: int | None
     page.wait_for_timeout(target_wait)
 
 
-def _component_screen_state(locator: Locator) -> dict[str, Any]:
-    result = _safe_locator_evaluate(locator, _COMPONENT_SCREEN_SCRIPT)
-    return result if result is not None else {"isConnected": True, "isVisible": False}
+def _component_screen_state(locator: Locator, use_direct_probe: bool = False) -> dict[str, Any]:
+    script = _DIRECT_PROBE_SCREEN_SCRIPT if use_direct_probe else _COMPONENT_SCREEN_SCRIPT
+    result = _safe_locator_evaluate(locator, script)
+    if result is not None:
+        return result
+    try:
+        box = locator.bounding_box(timeout=2000)
+    except Exception:
+        box = None
+    if not box:
+        return {"isConnected": True, "isVisible": False}
+    return {
+        "isConnected": True,
+        "isVisible": True,
+        "sizeOk": box["width"] >= 20 and box["height"] >= 20,
+        "inViewport": True,
+        "covered": False,
+        "disabled": False,
+        "pointerEvents": "auto",
+        "clickable": True,
+        "interactable": True,
+        "width": round(box["width"]),
+        "height": round(box["height"]),
+    }
 
 
 def _component_animation_count(locator: Locator) -> int:
@@ -1021,6 +1215,54 @@ _DISCOVER_COMPONENTS_SCRIPT = """
 
   const textOf = (el) => (el.innerText || el.textContent || "").trim().replace(/\\s+/g, " ");
   const px = (value) => Number.parseFloat(String(value || "0")) || 0;
+  const isElementNode = (node) => Boolean(node && node.nodeType === Node.ELEMENT_NODE);
+  const visibleTextFromNode = (node) => {
+    if (!isElementNode(node)) return "";
+    return textOf(node);
+  };
+  const labelledByText = (el) => {
+    const labelledBy = (el.getAttribute("aria-labelledby") || "").trim();
+    if (!labelledBy) return "";
+    return labelledBy
+      .split(/\\s+/)
+      .map((id) => {
+        const ref = document.getElementById(id);
+        return ref ? visibleTextFromNode(ref) : "";
+      })
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+  };
+  const iconText = (el) => {
+    const titleNode = el.querySelector("svg title, title");
+    if (titleNode) return visibleTextFromNode(titleNode);
+    const img = el.querySelector("img[alt]");
+    if (img && img.getAttribute("alt")) return img.getAttribute("alt").trim();
+    const srOnly = el.querySelector(".sr-only, .visually-hidden, [class*='screen-reader']");
+    if (srOnly) return visibleTextFromNode(srOnly);
+    return "";
+  };
+  const accessibleLabel = (el, kind = "") => {
+    const ownText = textOf(el);
+    const label = (
+      el.getAttribute("aria-label") ||
+      labelledByText(el) ||
+      ownText ||
+      el.getAttribute("title") ||
+      el.getAttribute("placeholder") ||
+      el.getAttribute("name") ||
+      iconText(el) ||
+      ""
+    ).trim();
+    if (label) return label.slice(0, 80);
+    const href = el.tagName.toLowerCase() === "a" ? new URL(el.href, location.href).pathname.replace(/\\/+$/, "") || "/" : "";
+    if (href && href !== "/") {
+      const tail = href.split("/").filter(Boolean).pop() || "";
+      if (tail) return tail.replace(/[-_]+/g, " ").slice(0, 80);
+    }
+    if (kind === "button" && el.querySelector("svg,[data-icon],img")) return "icon button";
+    return kind || el.tagName.toLowerCase();
+  };
   const styleOf = (el) => {
     const cs = getComputedStyle(el);
     return {
@@ -1035,13 +1277,59 @@ _DISCOVER_COMPONENTS_SCRIPT = """
       transitionTimingFunction: cs.transitionTimingFunction
     };
   };
+  const intersectsViewport = (rect) => (
+    rect.bottom > 0 &&
+    rect.right > 0 &&
+    rect.top < window.innerHeight &&
+    rect.left < window.innerWidth
+  );
+  const isCenterPointOwnedByElement = (el, rect) => {
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    if (centerX < 0 || centerY < 0 || centerX > window.innerWidth || centerY > window.innerHeight) return false;
+    const topElement = document.elementFromPoint(centerX, centerY);
+    return Boolean(topElement && (topElement === el || el.contains(topElement) || topElement.contains(el)));
+  };
   const isVisible = (el) => {
     const rect = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
     if (cs.display === "none" || cs.visibility === "hidden") return false;
     if (Number.parseFloat(cs.opacity || "1") < 0.05) return false;
     if (rect.width < 20 || rect.height < 20) return false;
+    if (el.hasAttribute("hidden") || el.getAttribute("aria-hidden") === "true" || el.hasAttribute("inert")) return false;
+    let parent = el.parentElement;
+    while (parent) {
+      const parentStyle = getComputedStyle(parent);
+      if (
+        parent.hasAttribute("hidden") ||
+        parent.hasAttribute("inert") ||
+        parent.getAttribute("aria-hidden") === "true" ||
+        parentStyle.display === "none" ||
+        parentStyle.visibility === "hidden" ||
+        Number.parseFloat(parentStyle.opacity || "1") < 0.05
+      ) return false;
+      parent = parent.parentElement;
+    }
     return true;
+  };
+  const effectivePositionFor = (el) => {
+    let node = el;
+    while (node && node !== section) {
+      const position = getComputedStyle(node).position;
+      if (position === "fixed" || position === "sticky") return position;
+      node = node.parentElement;
+    }
+    return getComputedStyle(el).position;
+  };
+  const isNavLike = (el) => {
+    let node = el;
+    while (node) {
+      const tag = (node.tagName || "").toLowerCase();
+      const role = (node.getAttribute && node.getAttribute("role") || "").toLowerCase();
+      if (tag === "nav" || tag === "header" || role === "navigation") return true;
+      node = node.parentElement;
+    }
+    return false;
   };
   const normalizedClass = (el) => String(el.className || "")
     .toLowerCase()
@@ -1051,10 +1339,17 @@ _DISCOVER_COMPONENTS_SCRIPT = """
     .slice(0, 6)
     .join(".");
   const patternKeyFor = (kind, el, rect, label) => {
-    const href = el.tagName.toLowerCase() === "a" ? new URL(el.href, location.href).pathname : "";
+    const href = el.tagName.toLowerCase() === "a" ? new URL(el.href, location.href).pathname.replace(/\\/+$/, "") || "/" : "";
     const textSig = label.toLowerCase().replace(/\\s+/g, " ").slice(0, 32);
     const widthBucket = Math.round(rect.width / 40) * 40;
     const heightBucket = Math.round(rect.height / 20) * 20;
+    const effectivePosition = effectivePositionFor(el);
+    if (kind === "link" && (isNavLike(el) || effectivePosition === "fixed" || effectivePosition === "sticky")) {
+      return ["nav-link", href, textSig].join("|");
+    }
+    if (kind === "button" && (isNavLike(el) || effectivePosition === "fixed" || effectivePosition === "sticky")) {
+      return ["nav-button", textSig, el.getAttribute("aria-label") || "", href].join("|");
+    }
     return [kind, el.tagName.toLowerCase(), normalizedClass(el), href, textSig, widthBucket, heightBucket].join("|");
   };
   const isPotentiallyClickable = (el) => {
@@ -1066,8 +1361,9 @@ _DISCOVER_COMPONENTS_SCRIPT = """
     if ((el.getAttribute("role") || "").toLowerCase() === "button") return true;
     if (cs.cursor === "pointer") return true;
     if (typeof el.onclick === "function") return true;
-    return Boolean(el.querySelector("a,button,[role='button']"));
+    return false;
   };
+  const hasActionableDescendant = (el) => Boolean(el.querySelector("a[href],button,[role='button'],input[type='button'],input[type='submit']"));
   const isCardLike = (el) => {
     const style = styleOf(el);
     const classText = `${el.className || ""}`.toLowerCase();
@@ -1086,29 +1382,25 @@ _DISCOVER_COMPONENTS_SCRIPT = """
     }
     return false;
   };
+  const actionableDescendantCount = (el) => el.querySelectorAll("a[href],button,[role='button'],input[type='button'],input[type='submit']").length;
+  const shouldSkipCardCandidate = (el) => {
+    if (isNavLike(el)) return true;
+    const actionableCount = actionableDescendantCount(el);
+    if (actionableCount > 1) return true;
+    const directActionableChild = [...el.children].some((child) => isElementNode(child) && child.matches("a[href],button,[role='button'],input[type='button'],input[type='submit']"));
+    return directActionableChild;
+  };
   const candidates = [];
   const seen = new Set();
   const seenPatterns = new Map();
   const push = (kind, el) => {
     if (!isVisible(el)) return;
     const rect = el.getBoundingClientRect();
-        const cs = getComputedStyle(el);
-        const effectivePosition = (() => {
-            let node = el;
-            while (node && node !== section) {
-                const position = getComputedStyle(node).position;
-                if (position === "fixed" || position === "sticky") return position;
-                node = node.parentElement;
-            }
-            return cs.position;
-        })();
-    const label = (
-      el.getAttribute("aria-label") ||
-      textOf(el) ||
-      el.getAttribute("placeholder") ||
-      el.getAttribute("name") ||
-      kind
-    ).slice(0, 80);
+    const cs = getComputedStyle(el);
+    const effectivePosition = effectivePositionFor(el);
+    if ((isNavLike(el) || effectivePosition === "fixed" || effectivePosition === "sticky") && !intersectsViewport(rect)) return;
+    if ((isNavLike(el) || effectivePosition === "fixed" || effectivePosition === "sticky") && !isCenterPointOwnedByElement(el, rect)) return;
+    const label = accessibleLabel(el, kind);
     const key = `${kind}:${label}:${Math.round(rect.top)}:${Math.round(rect.left)}:${Math.round(rect.width)}:${Math.round(rect.height)}`;
     if (seen.has(key)) return;
     seen.add(key);
@@ -1128,6 +1420,7 @@ _DISCOVER_COMPONENTS_SCRIPT = """
       kind,
       label,
       text: textOf(el).slice(0, 200),
+      href: el.tagName.toLowerCase() === "a" ? (new URL(el.href, location.href).pathname.replace(/\\/+$/, "") || "/") : "",
       width: Math.round(rect.width),
       height: Math.round(rect.height),
       className: String(el.className || ""),
@@ -1149,7 +1442,8 @@ _DISCOVER_COMPONENTS_SCRIPT = """
   [...section.querySelectorAll("div, article, li, a")].forEach((el) => {
     if (el.closest("button")) return;
     if (hasCardAncestor(el)) return;
-    if (!isPotentiallyClickable(el) && !el.querySelector("a,button,[role='button']")) return;
+    if (!isPotentiallyClickable(el) && !hasActionableDescendant(el)) return;
+    if (shouldSkipCardCandidate(el)) return;
     if (isCardLike(el)) push("card", el);
   });
 
@@ -1179,15 +1473,9 @@ _DISCOVER_COMPONENTS_SCRIPT = """
             if (!intersectsSection(rect)) continue;
             if (!isVisible(el)) continue;
             if (el.closest("button")) continue;
-            const label = (
-                el.getAttribute("aria-label") ||
-                textOf(el) ||
-                el.getAttribute("placeholder") ||
-                el.getAttribute("name") ||
-                "component"
-            ).slice(0, 80);
             const kind = el.tagName.toLowerCase() === "a" ? "link" : (el.tagName.toLowerCase() === "input" || el.tagName.toLowerCase() === "textarea" || el.tagName.toLowerCase() === "select") ? "input" : isPotentiallyClickable(el) ? "button" : isCardLike(el) ? "card" : null;
             if (!kind) continue;
+            if (kind === "card" && shouldSkipCardCandidate(el)) continue;
             push(kind, el);
         }
     }
@@ -1479,6 +1767,53 @@ _COMPONENT_SCREEN_SCRIPT = """
     pointerEvents: cs.pointerEvents,
     clickable,
     interactable: cs.pointerEvents !== "none" && !disabled && withinViewport,
+    width: Math.round(rect.width),
+    height: Math.round(rect.height)
+  };
+}
+"""
+
+
+_DIRECT_PROBE_SCREEN_SCRIPT = """
+(el) => {
+  const rect = el.getBoundingClientRect();
+  const cs = getComputedStyle(el);
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const sizeOk = rect.width >= 20 && rect.height >= 20;
+  const withinViewport = (
+    rect.bottom > 0 &&
+    rect.right > 0 &&
+    rect.top < window.innerHeight &&
+    rect.left < window.innerWidth
+  );
+  const centerInsideViewport = (
+    centerX >= 0 &&
+    centerY >= 0 &&
+    centerX <= window.innerWidth &&
+    centerY <= window.innerHeight
+  );
+  const topElement = centerInsideViewport ? document.elementFromPoint(centerX, centerY) : null;
+  const ownsHitTarget = Boolean(
+    topElement && (topElement === el || el.contains(topElement) || topElement.contains(el))
+  );
+  const disabled = Boolean(el.hasAttribute("disabled") || el.getAttribute("aria-disabled") === "true");
+  const clickable = !disabled && cs.pointerEvents !== "none" && (
+    ["a", "button", "input", "select", "textarea"].includes(el.tagName.toLowerCase()) ||
+    (el.getAttribute("role") || "").toLowerCase() === "button" ||
+    cs.cursor === "pointer" ||
+    typeof el.onclick === "function"
+  );
+  return {
+    isConnected: el.isConnected,
+    isVisible: sizeOk && withinViewport && centerInsideViewport && ownsHitTarget,
+    sizeOk,
+    inViewport: withinViewport,
+    covered: centerInsideViewport && !ownsHitTarget,
+    disabled,
+    pointerEvents: cs.pointerEvents,
+    clickable,
+    interactable: cs.pointerEvents !== "none" && !disabled && withinViewport && ownsHitTarget,
     width: Math.round(rect.width),
     height: Math.round(rect.height)
   };

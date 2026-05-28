@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -25,17 +26,23 @@ class HumanonnAgent:
         self.router = ModelRouter(settings)
 
     def scan(self, url: str) -> AuditReport:
+        started_at = time.perf_counter()
+        terminal_log(f"Site scan timer started for {url}", self.settings.terminal_logs)
         if self.settings.llm_enabled:
             try:
-                return self._scan_with_primary_orchestrator(url)
+                report = self._scan_with_primary_orchestrator(url)
             except Exception as exc:
                 report = self._scan_deterministic(url)
                 candidate = self.settings.primary_candidate("main_orchestrator")
                 report.agent_notes.append(f"{candidate.bug_tag} failed; used deterministic fallback: {exc}")
-                return report
-        report = self._scan_deterministic(url)
-        if not self.settings.llm_enabled:
-            report.agent_notes.append("Main orchestrator API key is not configured; used deterministic scanner.")
+        else:
+            report = self._scan_deterministic(url)
+            if not self.settings.llm_enabled:
+                report.agent_notes.append("Main orchestrator API key is not configured; used deterministic scanner.")
+        elapsed_ms = round((time.perf_counter() - started_at) * 1000)
+        elapsed_seconds = elapsed_ms / 1000
+        report.agent_notes.append(f"Site scan completed in {elapsed_seconds:.2f}s ({elapsed_ms} ms).")
+        terminal_log(f"Site scan completed in {elapsed_seconds:.2f}s ({elapsed_ms} ms) for {url}", self.settings.terminal_logs)
         return report
 
     def _scan_deterministic(self, url: str) -> AuditReport:

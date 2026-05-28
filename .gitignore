@@ -4,4 +4,6 @@ __pycache__/
 .env
 reports/
 .pytest_cache/
-
+tests/logs_lovable.md
+Humanonn.pdf
+Humanonn.pptx
