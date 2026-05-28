@@ -74,6 +74,40 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
                     "needs_vision_override": bool(manifest.get("needs_vision_override")),
                 }
             )
+            # If the crawler produced synthetic component artifacts (section-level samples),
+            # merge their computed style samples into the in-memory snapshot so rule
+            # evaluators that operate on `snapshot.sections` can see them.
+            try:
+                synthetic_count = 0
+                for sec in manifest.get("sections", []):
+                    for comp in sec.get("components", []):
+                        if comp.get("synthetic"):
+                            synthetic_count += 1
+                            # Build a snapshot-like section entry from the synthetic record
+                            style = comp.get("before_style", {}) or {}
+                            section_entry = {
+                                "text": comp.get("text", ""),
+                                "className": comp.get("className", "synthetic-section"),
+                                "backdropFilter": style.get("backdropFilter") or style.get("backdropFilter", ""),
+                                "boxShadow": style.get("boxShadow"),
+                                "backgroundImage": style.get("backgroundImage"),
+                                "borderTopWidth": style.get("borderTopWidth"),
+                                "borderBottomWidth": style.get("borderBottomWidth"),
+                                "borderRadius": style.get("borderRadius"),
+                                "width": comp.get("width") or style.get("width") or 0,
+                                "height": comp.get("height") or style.get("height") or 0,
+                                "id": comp.get("id"),
+                                "role": comp.get("section_id", ""),
+                                "looksCard": (style.get("borderRadius") and len(str(style.get("borderRadius")) > 0)) or False,
+                                "hasLink": False,
+                                "paragraphMaxWidth": 0,
+                            }
+                            data.setdefault("sections", []).append(section_entry)
+                if synthetic_count:
+                    terminal_log(f"Merged {synthetic_count} synthetic component(s) into in-memory snapshot.sections", settings.terminal_logs)
+            except Exception:
+                # best-effort: do not fail the crawl if merging synthetic samples fails
+                terminal_log("Failed to merge synthetic artifacts into snapshot; continuing without merge", settings.terminal_logs)
             _log_snapshot_summary(data, settings)
             browser.close()
             terminal_log("Closed Chromium session", settings.terminal_logs)
@@ -456,6 +490,15 @@ def _capture_component_with_retries(
 ) -> tuple[dict[str, Any], int]:
     locator = page.locator(f"[data-humanonn-component-id='{component['id']}']").first
     component_dir = section_dir / f"component_{component['index'] + 1:03d}_{component['kind']}_{_slugify(component['label'])}"
+    component_dir.mkdir(parents=True, exist_ok=True)
+    position = (
+        component.get("effectivePosition")
+        or component.get("position")
+        or (component.get("styles") or {}).get("position")
+    )
+    if not position:
+        position = _component_position(locator)
+    use_direct_probe = position in {"fixed", "sticky"}
     record: dict[str, Any] = {
         **component,
         "section_id": section["id"],
@@ -473,63 +516,65 @@ def _capture_component_with_retries(
     skip_reason = None
     pass_allowed = len(profiles)
 
-    classifier = _safe_locator_evaluate(
-        locator,
-        """(el) => {
-            const rect = el.getBoundingClientRect();
-            const isOffscreen = rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth;
-            return {
-                tag: el.tagName.toLowerCase(),
-                disabled: el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true',
-                width: rect.width,
-                height: rect.height,
-                isOffscreen: isOffscreen,
-                hasWebGL: el.tagName.toLowerCase() === 'canvas' && Boolean(el.getContext && (el.getContext('webgl') || el.getContext('experimental-webgl')))
-            };
-        }""",
-        timeout_ms=5000
-    )
-
-    if classifier is None:
-        terminal_log(
-            f"classifier_timeout: component {component['index'] + 1} '{component['label']}'",
-            settings.terminal_logs,
+    classifier = None
+    if not use_direct_probe:
+        classifier = _safe_locator_evaluate(
+            locator,
+            """(el) => {
+                const rect = el.getBoundingClientRect();
+                const isOffscreen = rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth;
+                return {
+                    tag: el.tagName.toLowerCase(),
+                    disabled: el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true',
+                    width: rect.width,
+                    height: rect.height,
+                    isOffscreen: isOffscreen,
+                    hasWebGL: el.tagName.toLowerCase() === 'canvas' && Boolean(el.getContext && (el.getContext('webgl') || el.getContext('experimental-webgl')))
+                };
+            }""",
+            timeout_ms=5000
         )
-        attempt["classifier_timeout"] = True
-        attempt["screen"] = {
-            "isConnected": True,
-            "isVisible": True,
-            "sizeOk": True,
-            "inViewport": True,
-            "covered": False,
-            "disabled": False,
-            "pointerEvents": "auto",
-            "clickable": component["kind"] in {"button", "link", "input"},
-            "interactable": True,
-            "width": component.get("width", 0),
-            "height": component.get("height", 0),
-        }
-    else:
-        if classifier["tag"] in ("video", "canvas", "iframe"):
-            skip_reason = f"tag is {classifier['tag']}"
-            pass_allowed = 0
-        elif classifier.get("hasWebGL"):
-            skip_reason = "webgl canvas"
-            pass_allowed = 0
-        elif classifier["width"] == 0 or classifier["height"] == 0:
-            skip_reason = "zero-size element"
-            pass_allowed = 0
-        elif classifier["isOffscreen"]:
-            skip_reason = "element is off-screen"
-            pass_allowed = 0
-        elif classifier["disabled"]:
-            skip_reason = "element is disabled"
-            pass_allowed = 0
-        elif consecutive_timeouts >= 2:
-            skip_reason = "consecutive section timeouts"
-            pass_allowed = 0
 
-    if pass_allowed > 0 and skip_reason is None:
+        if classifier is None:
+            terminal_log(
+                f"classifier_timeout: component {component['index'] + 1} '{component['label']}'",
+                settings.terminal_logs,
+            )
+            attempt["classifier_timeout"] = True
+            attempt["screen"] = {
+                "isConnected": True,
+                "isVisible": True,
+                "sizeOk": True,
+                "inViewport": True,
+                "covered": False,
+                "disabled": False,
+                "pointerEvents": "auto",
+                "clickable": component["kind"] in {"button", "link", "input"},
+                "interactable": True,
+                "width": component.get("width", 0),
+                "height": component.get("height", 0),
+            }
+        else:
+            if classifier["tag"] in ("video", "canvas", "iframe"):
+                skip_reason = f"tag is {classifier['tag']}"
+                pass_allowed = 0
+            elif classifier.get("hasWebGL"):
+                skip_reason = "webgl canvas"
+                pass_allowed = 0
+            elif classifier["width"] == 0 or classifier["height"] == 0:
+                skip_reason = "zero-size element"
+                pass_allowed = 0
+            elif classifier["isOffscreen"]:
+                skip_reason = "element is off-screen"
+                pass_allowed = 0
+            elif classifier["disabled"]:
+                skip_reason = "element is disabled"
+                pass_allowed = 0
+            elif consecutive_timeouts >= 2:
+                skip_reason = "consecutive section timeouts"
+                pass_allowed = 0
+
+    if pass_allowed > 0 and skip_reason is None and not use_direct_probe:
         animation_count = _component_animation_count(locator)
         if animation_count > 0:
             pass_allowed = 1
@@ -564,7 +609,10 @@ def _capture_component_with_retries(
                 terminal_log(f"Probe start: component {component['index'] + 1} '{component['label']}' {box}", settings.terminal_logs)
             except Exception:
                 pass
-            _scroll_locator_into_focus(page, locator, settings, profile)
+            if use_direct_probe:
+                _probe_directly_at_current_position(page, locator, settings, profile)
+            else:
+                _scroll_locator_into_focus(page, locator, settings, profile)
             screen = _component_screen_state(locator)
             attempt["screen"] = screen
             readiness_reason = _component_readiness_reason(component, screen)
@@ -574,7 +622,16 @@ def _capture_component_with_retries(
                 record["attempts"].append(attempt)
                 continue
 
-            _capture_component_states(page, locator, component, component_dir, record, profile, settings)
+            _capture_component_states(
+                page,
+                locator,
+                component,
+                component_dir,
+                record,
+                profile,
+                settings,
+                use_direct_probe=use_direct_probe,
+            )
             attempt["status"] = "verified"
             record["status"] = "verified"
             record["verified"] = True
@@ -622,6 +679,7 @@ def _capture_component_states(
     record: dict[str, Any],
     profile: dict[str, Any],
     settings: Settings,
+    use_direct_probe: bool = False,
 ) -> None:
     before_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
     before_path = component_dir / "before.png"
@@ -632,7 +690,13 @@ def _capture_component_states(
     hover_diff: list[str] = []
     if component["kind"] != "input":
         hover_path = component_dir / "hover.png"
-        locator.hover(timeout=profile["hover_timeout_ms"], force=True)
+        if use_direct_probe:
+            box = locator.bounding_box(timeout=5000)
+            if not box:
+                raise RuntimeError("element has no bounding box for direct hover probe")
+            page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        else:
+            locator.hover(timeout=profile["hover_timeout_ms"], force=True)
         page.wait_for_timeout(profile["interaction_wait_ms"])
         hover_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
         hover_diff = _diff_styles(before_style, hover_style)
@@ -659,7 +723,13 @@ def _capture_component_states(
     active_diff: list[str] = []
     if component["kind"] == "input":
         focus_path = component_dir / "focus.png"
-        locator.click(timeout=profile["hover_timeout_ms"])
+        if use_direct_probe:
+            box = locator.bounding_box(timeout=5000)
+            if not box:
+                raise RuntimeError("element has no bounding box for direct focus probe")
+            page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        else:
+            locator.click(timeout=profile["hover_timeout_ms"])
         page.wait_for_timeout(profile["interaction_wait_ms"])
         active_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
         active_diff = _diff_styles(before_style, active_style)
@@ -709,6 +779,28 @@ def _scroll_locator_into_focus(page: Page, locator: Locator, settings: Settings,
     _safe_locator_evaluate(locator, "(el) => el.scrollIntoView({ block: 'center', inline: 'nearest' })")
     _settle_page(page, settings, "scroll-into-view", wait_ms=(profile or {}).get("render_wait_ms"))
     _wait_for_locator_stable(page, locator, settings, profile)
+
+
+def _probe_directly_at_current_position(page: Page, locator: Locator, settings: Settings, profile: dict[str, Any] | None = None) -> None:
+    # For fixed/sticky elements, avoid scroll-induced layout churn and stability waits.
+    _settle_page(page, settings, "direct-probe", wait_ms=(profile or {}).get("render_wait_ms"))
+
+
+def _component_position(locator: Locator) -> str | None:
+    return _safe_locator_evaluate(
+        locator,
+        """(el) => {
+            let node = el;
+            while (node && node !== document.documentElement) {
+                const position = getComputedStyle(node).position;
+                if (position === 'fixed' || position === 'sticky') {
+                    return position;
+                }
+                node = node.parentElement;
+            }
+            return getComputedStyle(el).position;
+        }""",
+    )
 
 
 def _wait_for_locator_stable(
@@ -919,11 +1011,20 @@ _DISCOVER_COMPONENTS_SCRIPT = """
   const section = document.querySelector(`[data-humanonn-section-id="${sectionId}"]`);
   if (!section) return [];
 
+    const sectionRect = section.getBoundingClientRect();
+    const intersectsSection = (rect) => (
+        rect.right > sectionRect.left &&
+        rect.left < sectionRect.right &&
+        rect.bottom > sectionRect.top &&
+        rect.top < sectionRect.bottom
+    );
+
   const textOf = (el) => (el.innerText || el.textContent || "").trim().replace(/\\s+/g, " ");
   const px = (value) => Number.parseFloat(String(value || "0")) || 0;
   const styleOf = (el) => {
     const cs = getComputedStyle(el);
     return {
+            position: cs.position,
       borderRadius: cs.borderRadius,
       boxShadow: cs.boxShadow,
       backdropFilter: cs.backdropFilter || cs.webkitBackdropFilter || "",
@@ -991,6 +1092,16 @@ _DISCOVER_COMPONENTS_SCRIPT = """
   const push = (kind, el) => {
     if (!isVisible(el)) return;
     const rect = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const effectivePosition = (() => {
+            let node = el;
+            while (node && node !== section) {
+                const position = getComputedStyle(node).position;
+                if (position === "fixed" || position === "sticky") return position;
+                node = node.parentElement;
+            }
+            return cs.position;
+        })();
     const label = (
       el.getAttribute("aria-label") ||
       textOf(el) ||
@@ -1021,6 +1132,8 @@ _DISCOVER_COMPONENTS_SCRIPT = """
       height: Math.round(rect.height),
       className: String(el.className || ""),
       styles: styleOf(el),
+    position: cs.position,
+    effectivePosition,
       patternKey,
       duplicateCount: 1,
       interactableHint: isPotentiallyClickable(el)
@@ -1039,6 +1152,45 @@ _DISCOVER_COMPONENTS_SCRIPT = """
     if (!isPotentiallyClickable(el) && !el.querySelector("a,button,[role='button']")) return;
     if (isCardLike(el)) push("card", el);
   });
+
+    // Some hero sections render their actionable children outside the section subtree
+    // (for example via absolute-positioned overlays or framework portals). If the
+    // subtree query returns nothing, do a geometry-based pass across the document and
+    // keep only elements that overlap the section bounds.
+    if (candidates.length === 0) {
+        const fallbackSelectors = [
+            "button",
+            "[role='button']",
+            "input[type='button']",
+            "input[type='submit']",
+            "a[href]",
+            "input",
+            "textarea",
+            "select",
+            "article",
+            "li",
+            "div"
+        ];
+        const fallbackNodes = [...new Set(fallbackSelectors.flatMap((selector) => [...document.querySelectorAll(selector)]))];
+        for (const el of fallbackNodes) {
+            if (section === el || section.contains(el)) continue;
+            const rect = el.getBoundingClientRect();
+            if (!rect.width || !rect.height) continue;
+            if (!intersectsSection(rect)) continue;
+            if (!isVisible(el)) continue;
+            if (el.closest("button")) continue;
+            const label = (
+                el.getAttribute("aria-label") ||
+                textOf(el) ||
+                el.getAttribute("placeholder") ||
+                el.getAttribute("name") ||
+                "component"
+            ).slice(0, 80);
+            const kind = el.tagName.toLowerCase() === "a" ? "link" : (el.tagName.toLowerCase() === "input" || el.tagName.toLowerCase() === "textarea" || el.tagName.toLowerCase() === "select") ? "input" : isPotentiallyClickable(el) ? "button" : isCardLike(el) ? "card" : null;
+            if (!kind) continue;
+            push(kind, el);
+        }
+    }
 
   return candidates.slice(0, 120);
 }
