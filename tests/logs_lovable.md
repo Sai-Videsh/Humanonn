@@ -7,25 +7,14 @@ Downloading Chrome Headless Shell 148.0.7778.96 (playwright chromium-headless-sh
 Chrome Headless Shell 148.0.7778.96 (playwright chromium-headless-shell v1223) downloaded to C:\Users\saivi\AppData\Local\ms-playwright\chromium_headless_shell-1223
 PS D:\Humanonn> d:/Humanonn/.venv/Scripts/python.exe -m humanonn scan https://lovable.dev/ --json reports/site.json
 [humanonn] Starting crawl for https://lovable.dev/
-[humanonn] Main screenshot target: reports\data\7eb11b6a6b22\main.png
-[humanonn] Legacy screenshot target: reports\screenshots\7eb11b6a6b22.png
+[humanonn] Main screenshot target: reports\data\main.png
+[humanonn] Legacy screenshot target: reports\screenshots\7eb.png
 [humanonn] Launching Chromium (headless=True)
 [humanonn] Navigating to page with staged readiness checks
 [humanonn] Navigation reached DOMContentLoaded
 [humanonn] Page reached load state
-[humanonn] browser console [log]: 
-⠀⠀#######
- ##########
-#############
-##############
-##############
-###################
-#####################
-#######################
-#######################
-#######################
-######################
-###################
+[humanonn] browser console [log]:
+
 
 %cWe're hiring!
 
@@ -33,7 +22,7 @@ PS D:\Humanonn> d:/Humanonn/.venv/Scripts/python.exe -m humanonn scan https://lo
 [humanonn] Waiting for page settle: post-navigation
 [humanonn] browser console [debug]: Error
 [humanonn] browser console [warning]: No available adapters.
-[humanonn] browser console [warning]: [.WebGL-0x341c02398800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+[humanonn] browser console [warning]: GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
 [humanonn] browser console [debug]: Error
 [humanonn] Performing scroll-to-bottom render pass
 [humanonn] request failed: GET https://lovable.dev/templates/websites/portfolio/hobby-photographer?_rsc=ry-B8umWgNEV4JR9 (net::ERR_ABORTED)

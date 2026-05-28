@@ -27,8 +27,8 @@ class ModelRouter:
     ) -> tuple[dict[str, Any], ModelCandidate, list[dict[str, str]]]:
         attempts: list[dict[str, str]] = []
         for candidate in route_for(task):
-            api_key = self.settings.api_key_for(candidate.provider)
-            if not api_key:
+            api_keys = self.settings.api_keys_for(candidate.provider)
+            if not api_keys:
                 attempts.append({"bug_tag": candidate.bug_tag, "status": "skipped", "reason": "missing_api_key"})
                 continue
             try:
@@ -52,8 +52,8 @@ class ModelRouter:
     def embed_texts(self, texts: list[str], labels: list[str] | None = None) -> tuple[dict[str, Any], ModelCandidate, list[dict[str, str]]]:
         attempts: list[dict[str, str]] = []
         for candidate in route_for("embeddings"):
-            api_key = self.settings.api_key_for(candidate.provider)
-            if not api_key:
+            api_keys = self.settings.api_keys_for(candidate.provider)
+            if not api_keys:
                 attempts.append({"bug_tag": candidate.bug_tag, "status": "skipped", "reason": "missing_api_key"})
                 continue
             try:
@@ -82,17 +82,25 @@ class ModelRouter:
         user_payload: dict[str, Any],
         temperature: float,
     ) -> Any:
-        client = Groq(api_key=self.settings.api_key_for("groq"))
-        response = client.chat.completions.create(
-            model=candidate.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": json.dumps(user_payload, ensure_ascii=True)},
-            ],
-            response_format={"type": "json_object"},
-            temperature=temperature,
-        )
-        return response.choices[0].message.content or "{}"
+        last_error: Exception | None = None
+        for api_key in self.settings.api_keys_for("groq"):
+            try:
+                client = Groq(api_key=api_key)
+                response = client.chat.completions.create(
+                    model=candidate.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": json.dumps(user_payload, ensure_ascii=True)},
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=temperature,
+                )
+                return response.choices[0].message.content or "{}"
+            except Exception as exc:
+                last_error = exc
+        if last_error is None:
+            raise RuntimeError("Missing Groq API key.")
+        raise last_error
 
     def _call_gemini(
         self,
@@ -219,7 +227,6 @@ class ModelRouter:
         archetypes: list[str],
         labels: list[str],
     ) -> list[dict[str, Any]]:
-        client = Groq(api_key=self.settings.api_key_for("groq"))
         payload = {
             "site_signature": site_signature,
             "archetypes": [{"label": label, "text": text} for label, text in zip(labels, archetypes)],
@@ -230,20 +237,29 @@ class ModelRouter:
             "{\"similarities\":[{\"label\":\"name\",\"score\":0.0,\"reason\":\"short reason\"}]} . "
             "Score must be between 0 and 1."
         )
-        response = client.chat.completions.create(
-            model=candidate.model,
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": json.dumps(payload, ensure_ascii=True)},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.1,
-        )
-        content = response.choices[0].message.content or "{}"
-        parsed = _coerce_json(content)
-        similarities = parsed.get("similarities", [])
-        similarities.sort(key=lambda item: item.get("score", 0), reverse=True)
-        return similarities
+        last_error: Exception | None = None
+        for api_key in self.settings.api_keys_for("groq"):
+            try:
+                client = Groq(api_key=api_key)
+                response = client.chat.completions.create(
+                    model=candidate.model,
+                    messages=[
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": json.dumps(payload, ensure_ascii=True)},
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.1,
+                )
+                content = response.choices[0].message.content or "{}"
+                parsed = _coerce_json(content)
+                similarities = parsed.get("similarities", [])
+                similarities.sort(key=lambda item: item.get("score", 0), reverse=True)
+                return similarities
+            except Exception as exc:
+                last_error = exc
+        if last_error is None:
+            raise RuntimeError("Missing Groq API key.")
+        raise last_error
 
 
 def _coerce_json(value: Any) -> dict[str, Any]:

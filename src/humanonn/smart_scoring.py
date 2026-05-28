@@ -49,7 +49,6 @@ VISION_PATTERN_ALIASES: dict[str, str] = {
     "glassmorphism": "glassmorphism",
     "glassmorphism cards": "glassmorphism",
     "frosted glass": "glassmorphism",
-    "gradient text": "gradient_text",
     "purple accent": "purple_accent",
     "violet accent": "purple_accent",
     "mesh gradient": "mesh_gradient",
@@ -116,7 +115,13 @@ def run_smart_scoring(
     # window (38-52), zero out the LLM adjustment because overrides already resolved ambiguity.
     zeroed_llm_note = None
     post_merge_deterministic = score_findings(merged_findings, score_mode="smart_llm", llm_adjustment=0.0)
-    if not 38 <= post_merge_deterministic.vibe_score <= 52:
+    strong_positive_llm_evidence = (
+        llm_adjustment > 0
+        and archetype_label == "vibe_coded"
+        and aggregator_result.get("archetype_label") == "vibe_coded"
+        and (vision_result.get("score_hint", {}) or {}).get("direction") == "up"
+    )
+    if not 38 <= post_merge_deterministic.vibe_score <= 52 and not strong_positive_llm_evidence:
         zeroed_llm_note = (
             f"Zeroed LLM adjustment because post-merge deterministic score {post_merge_deterministic.vibe_score} is outside the 38-52 borderline window."
         )
@@ -423,6 +428,9 @@ def _vision_signal_overrides(vision_result: dict[str, Any]) -> list[dict[str, An
         signal_id = str(item.get("signal_id", "")).strip()
         if not signal_id:
             signal_id = VISION_PATTERN_ALIASES.get(label, "")
+        if signal_id == "gradient_text":
+            # Keep hero-headline gradient text tied to explicit confirmation only.
+            continue
         if signal_id not in SIGNAL_BY_ID:
             continue
         signal = SIGNAL_BY_ID[signal_id]

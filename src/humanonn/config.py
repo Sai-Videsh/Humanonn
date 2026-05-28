@@ -10,6 +10,7 @@ from .model_routing import ModelCandidate, ModelTask, route_for
 @dataclass(frozen=True)
 class Settings:
     groq_api_key: str | None
+    groq_api_key_2: str | None
     gemini_api_key: str | None
     openrouter_api_key: str | None
     deepseek_api_key: str | None
@@ -45,18 +46,22 @@ class Settings:
 
     @property
     def llm_enabled(self) -> bool:
-        return bool(self.api_key_for(self.main_provider))
+        return any(self.api_keys_for(candidate.provider) for candidate in route_for("main_orchestrator"))
 
     def api_key_for(self, provider: str) -> str | None:
+        keys = self.api_keys_for(provider)
+        return keys[0] if keys else None
+
+    def api_keys_for(self, provider: str) -> list[str]:
         return {
-            "groq": self.groq_api_key,
-            "gemini": self.gemini_api_key,
-            "openrouter": self.openrouter_api_key,
-            "deepseek": self.deepseek_api_key,
-            "jina": self.jina_api_key,
-            "mixedbread": self.mixedbread_api_key,
-            "voyage": self.voyage_api_key,
-        }.get(provider)
+            "groq": [key for key in (self.groq_api_key, self.groq_api_key_2) if key],
+            "gemini": [key for key in (self.gemini_api_key,) if key],
+            "openrouter": [key for key in (self.openrouter_api_key,) if key],
+            "deepseek": [key for key in (self.deepseek_api_key,) if key],
+            "jina": [key for key in (self.jina_api_key,) if key],
+            "mixedbread": [key for key in (self.mixedbread_api_key,) if key],
+            "voyage": [key for key in (self.voyage_api_key,) if key],
+        }.get(provider, [])
 
     def primary_candidate(self, task: ModelTask) -> ModelCandidate:
         configured = {
@@ -78,6 +83,7 @@ def load_settings() -> Settings:
     _load_dotenv()
     return Settings(
         groq_api_key=os.getenv("GROQ_API_KEY"),
+        groq_api_key_2=os.getenv("GROQ_API_KEY_2"),
         gemini_api_key=os.getenv("GEMINI_API_KEY"),
         openrouter_api_key=os.getenv("OPENROUTER_API_KEY"),
         deepseek_api_key=os.getenv("DEEPSEEK_API_KEY"),

@@ -1204,6 +1204,7 @@ _DISCOVER_COMPONENTS_SCRIPT = """
 (sectionId) => {
   const section = document.querySelector(`[data-humanonn-section-id="${sectionId}"]`);
   if (!section) return [];
+  const allowFixedGlobalElements = sectionId === "section-1";
 
     const sectionRect = section.getBoundingClientRect();
     const intersectsSection = (rect) => (
@@ -1398,6 +1399,7 @@ _DISCOVER_COMPONENTS_SCRIPT = """
     const rect = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
     const effectivePosition = effectivePositionFor(el);
+    if (!allowFixedGlobalElements && (effectivePosition === "fixed" || effectivePosition === "sticky" || isNavLike(el))) return;
     if ((isNavLike(el) || effectivePosition === "fixed" || effectivePosition === "sticky") && !intersectsViewport(rect)) return;
     if ((isNavLike(el) || effectivePosition === "fixed" || effectivePosition === "sticky") && !isCenterPointOwnedByElement(el, rect)) return;
     const label = accessibleLabel(el, kind);
@@ -1442,8 +1444,12 @@ _DISCOVER_COMPONENTS_SCRIPT = """
   [...section.querySelectorAll("div, article, li, a")].forEach((el) => {
     if (el.closest("button")) return;
     if (hasCardAncestor(el)) return;
-    if (!isPotentiallyClickable(el) && !hasActionableDescendant(el)) return;
     if (shouldSkipCardCandidate(el)) return;
+    if (isCardLike(el)) {
+      push("card", el);
+      return;
+    }
+    if (!isPotentiallyClickable(el) && !hasActionableDescendant(el)) return;
     if (isCardLike(el)) push("card", el);
   });
 
