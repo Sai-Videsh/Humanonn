@@ -220,6 +220,7 @@ def run_smart_scoring(
         score=score,
         findings=merged_findings,
         screenshot_path=base_report.screenshot_path,
+        scan_metadata=base_report.scan_metadata,
         agent_notes=smart_notes,
         smart_summary=aggregator_result.get("summary") if smart_summary_enabled else None,
         archetype_label=archetype_label,
@@ -410,7 +411,7 @@ def _build_evidence_pack(
     }
     for section in sections[:8]:
         components = section.get("components", [])
-        verified = sum(1 for item in components if item.get("status") == "verified")
+        verified = sum(1 for item in components if item.get("status") in {"verified", "style_verified"})
         unverified = sum(1 for item in components if item.get("status") == "unverified")
         artifact_summary["verified_components"] += verified
         artifact_summary["unverified_components"] += unverified

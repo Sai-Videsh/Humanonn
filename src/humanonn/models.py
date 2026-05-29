@@ -70,6 +70,7 @@ class AuditReport:
     score: ScoreSummary
     findings: list[SignalFinding]
     screenshot_path: str | None
+    scan_metadata: dict[str, Any] = field(default_factory=dict)
     agent_notes: list[str] = field(default_factory=list)
     smart_summary: str | None = None
     archetype_label: str | None = None

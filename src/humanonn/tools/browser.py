@@ -85,6 +85,7 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
                     "main_image_path": str(main_image_path),
                     "section_artifact_count": len(manifest.get("sections", [])),
                     "needs_vision_override": bool(manifest.get("needs_vision_override")),
+                    "scan_metadata": _scan_metadata_from_manifest(manifest),
                 }
             )
             # If the crawler produced synthetic component artifacts (section-level samples),
@@ -213,6 +214,13 @@ def _attach_page_logs(page: Page, settings: Settings) -> None:
         return
     page.on("console", lambda msg: terminal_log(f"browser console [{msg.type}]: {msg.text}", settings.terminal_logs))
     page.on("pageerror", lambda exc: terminal_log(f"browser page error: {exc}", settings.terminal_logs))
+    page.on(
+        "response",
+        lambda response: None if response.status < 400 or _is_noise_request(response.url) else terminal_log(
+            f"response error: {response.status} {response.url}",
+            settings.terminal_logs,
+        ),
+    )
     page.on(
         "requestfailed",
         lambda request: None if _is_noise_request(request.url) else terminal_log(
@@ -509,6 +517,40 @@ def _build_unverified_component_record(
     return record
 
 
+def _capture_static_component_style(
+    locator: Locator,
+    component: dict[str, Any],
+    component_dir: Path,
+    record: dict[str, Any],
+) -> None:
+    before_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
+    before_path = component_dir / "before.png"
+    locator.screenshot(path=str(before_path), timeout=5000)
+    record["before_image_path"] = str(before_path)
+    record["hover_image_path"] = None
+    record["active_image_path"] = None
+    record["focus_image_path"] = None
+    record["status"] = "style_verified"
+    record["verified"] = True
+    record["style_only"] = True
+    record["before_style"] = before_style
+    record["hover_style"] = before_style
+    record["active_style"] = before_style
+    record["hover_changed"] = False
+    record["active_changed"] = False
+    record["hover_diff"] = []
+    record["active_diff"] = []
+    _safe_locator_evaluate(
+        locator,
+        """(el) => {
+            el.setAttribute('data-humanonn-hover-effect', 'false');
+            el.setAttribute('data-humanonn-hover-diff', '');
+            el.setAttribute('data-humanonn-active-effect', 'false');
+            el.setAttribute('data-humanonn-active-diff', '');
+        }""",
+    )
+
+
 def _capture_component_with_retries(
     page: Page,
     section: dict[str, Any],
@@ -652,6 +694,17 @@ def _capture_component_with_retries(
                     box = None
                 if box and box.get("width", 0) >= 20 and box.get("height", 0) >= 20:
                     readiness_reason = None
+            if (
+                readiness_reason == "element is not interactable"
+                and component.get("kind") == "card"
+                and not component.get("interactableHint")
+            ):
+                _capture_static_component_style(locator, component, component_dir, record)
+                attempt["status"] = "style_verified"
+                attempt["reason"] = "static card style sample"
+                record["attempts"].append(attempt)
+                new_consecutive_timeouts = 0
+                break
             if readiness_reason is not None:
                 attempt["status"] = "retry"
                 attempt["reason"] = readiness_reason
@@ -1039,6 +1092,34 @@ def _component_animation_count(locator: Locator) -> int:
     if isinstance(result, float) and result.is_integer():
         return int(result)
     return 0
+
+
+def _scan_metadata_from_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+    sections = manifest.get("sections", []) if isinstance(manifest, dict) else []
+    components = [
+        component
+        for section in sections
+        for component in section.get("components", [])
+        if isinstance(component, dict)
+    ]
+    total = len(components)
+    verified = sum(1 for component in components if component.get("status") == "verified")
+    style_verified = sum(1 for component in components if component.get("status") == "style_verified")
+    synthetic = sum(1 for component in components if component.get("status") == "synthetic")
+    unverified = sum(1 for component in components if component.get("status") == "unverified")
+    checked = verified + style_verified
+    interaction_coverage = checked / total if total else 0.0
+    full_coverage = (checked + synthetic) / total if total else 0.0
+    return {
+        "section_count": len(sections),
+        "component_count": total,
+        "verified_components": verified,
+        "style_verified_components": style_verified,
+        "synthetic_components": synthetic,
+        "unverified_components": unverified,
+        "interaction_coverage_ratio": round(interaction_coverage, 4),
+        "artifact_coverage_ratio": round(full_coverage, 4),
+    }
 
 
 

@@ -54,6 +54,7 @@ class ToolRegistry:
             score=score,
             findings=findings,
             screenshot_path=self.snapshot.screenshot_path,
+            scan_metadata=self.snapshot.raw.get("scan_metadata", {}),
         )
         return self.report
 

@@ -1,10 +1,13 @@
 import json
 import html
 import streamlit as st
+import threading
+import queue
 import subprocess
 import sys
 import time
 from pathlib import Path
+import os
 
 ROOT = Path(__file__).parent
 REPORTS_DIR = ROOT / "reports" / "webui"
@@ -17,28 +20,200 @@ def _inject_css(path: Path):
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
+def _render_live_logs(placeholder, logs: list[str], running: bool) -> None:
+    if logs:
+        body = "\n".join(html.escape(line) for line in logs[-300:])
+        # body = "\n".join(html.escape(line) for line in reversed(logs[-300:]))
+    elif running:
+        body = "Live logs will appear here while the scan runs."
+    else:
+        body = "No live logs in this session. Run a scan to see them here."
+
+    log_html = """
+    <div id="humanonn-live-log" style="
+        height: 260px;
+        overflow-y: auto;
+        background: #0f1115;
+        color: #e7e9ee;
+        border: 1px solid #252935;
+        border-radius: 6px;
+        padding: 12px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        ">__BODY__</div>
+    <script>
+      const logBox = document.getElementById("humanonn-live-log");
+      if (logBox) {
+        const threshold = 48;
+        const storageKey = "humanonn-live-log-autoscroll";
+        # const nearBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < threshold;
+        # const shouldStick = localStorage.getItem(storageKey) !== "paused";
+        # if (shouldStick || nearBottom) {
+        #   logBox.scrollTop = 0;
+        # }
+        if (!logBox.dataset.bound) {
+          logBox.dataset.bound = "true";
+          logBox.addEventListener("scroll", () => {
+            const isNearBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < threshold;
+            localStorage.setItem(storageKey, isNearBottom ? "auto" : "paused");
+          }, { passive: true });
+        }
+          // Auto-scroll to bottom unless user explicitly scrolled up
+            const shouldStick = localStorage.getItem(storageKey) !== "paused";
+            if (shouldStick) {
+                logBox.scrollTop = logBox.scrollHeight;
+            }
+
+      }
+    </script>
+        """.replace("__BODY__", body)
+    with placeholder.container():
+        st.html(log_html, unsafe_allow_javascript=True)
+
+
+def _scan_stdout_reader(process: subprocess.Popen[str], output_queue: queue.Queue[tuple[str, str | int]]) -> None:
+    try:
+        assert process.stdout is not None
+        for line in iter(process.stdout.readline, ""):
+            if line:
+                output_queue.put(("line", line.rstrip()))
+        return_code = process.wait()
+        output_queue.put(("done", return_code))
+    except Exception as exc:
+        output_queue.put(("error", str(exc)))
+
+
+def _start_scan(url: str) -> None:
+    timestamp = int(time.time())
+    out_dir = REPORTS_DIR / f"scan_{timestamp}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_json = out_dir / "site.json"
+
+    st.session_state["live_logs"] = []
+    st.session_state["live_scan_running"] = True
+    st.session_state["scan_stop_requested"] = False
+    st.session_state["scan_report_data"] = None
+    st.session_state["scan_report_path"] = None
+    st.session_state["latest_run_summary"] = None
+
+    cmd = [sys.executable, "-u", "-m", "humanonn", "scan", url, "--json", str(out_json)]
+    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        creationflags=creationflags,
+    )
+    output_queue: queue.Queue[tuple[str, str | int]] = queue.Queue()
+    reader = threading.Thread(target=_scan_stdout_reader, args=(process, output_queue), daemon=True)
+    reader.start()
+
+    st.session_state["scan_process"] = process
+    st.session_state["scan_output_queue"] = output_queue
+    st.session_state["scan_reader_thread"] = reader
+    st.session_state["scan_output_path"] = out_json
+    st.session_state["scan_command"] = cmd
+
+
+def _stop_scan() -> None:
+    process = st.session_state.get("scan_process")
+    if not process:
+        return
+    try:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except Exception:
+                process.kill()
+    finally:
+        st.session_state["scan_stop_requested"] = True
+        st.session_state["live_scan_running"] = False
+
+
+def _drain_scan_output() -> None:
+    output_queue = st.session_state.get("scan_output_queue")
+    if not output_queue:
+        return
+    finished = False
+    while True:
+        try:
+            kind, payload = output_queue.get_nowait()
+        except queue.Empty:
+            break
+        if kind == "line":
+            st.session_state["live_logs"].append(str(payload))
+        elif kind == "error":
+            st.session_state["live_logs"].append(f"ERROR: {payload}")
+            finished = True
+        elif kind == "done":
+            finished = True
+    if finished:
+        st.session_state["live_scan_running"] = False
+        st.session_state["scan_process"] = None
+        st.session_state["scan_output_queue"] = None
+        st.session_state["scan_reader_thread"] = None
+        out_json = st.session_state.get("scan_output_path")
+        if not st.session_state.get("scan_stop_requested") and out_json:
+            report_path = Path(out_json)
+            if report_path.exists():
+                st.session_state["scan_report_path"] = report_path
+                try:
+                    report_data = json.loads(report_path.read_text(encoding="utf-8"))
+                except Exception:
+                    report_data = None
+                st.session_state["scan_report_data"] = report_data
+                if report_data:
+                    score_block = report_data.get("score") if isinstance(report_data.get("score"), dict) else {}
+                    vibe = report_data.get("vibe_score") or score_block.get("vibe_score") or report_data.get("final_score")
+                    findings = report_data.get("findings") or report_data.get("flagged_issues") or []
+                    st.session_state["latest_run_summary"] = f"{report_data.get('url', '')} — {len(findings)} findings — vibe: {vibe}"
+        else:
+            st.session_state["scan_report_data"] = None
+            st.session_state["scan_report_path"] = None
+
+
+def _render_scan_controls() -> None:
+    left, right = st.columns(2)
+    start_clicked = left.button("Start scan", disabled=st.session_state["live_scan_running"])
+    stop_clicked = right.button("Stop scan", disabled=not st.session_state["live_scan_running"])
+    if start_clicked and url:
+        _start_scan(url)
+        st.rerun()
+    if stop_clicked:
+        _stop_scan()
+        st.rerun()
+
+
 st.title("Humanonn — Web Scanner UI")
 st.write("Run Humanonn scans from the browser. The server must have the repo and dependencies installed.")
 
 _inject_css(REPORTS_DIR / "style.css")
 
 url = st.text_input("URL to scan", "https://example.com")
-scan_btn = st.button("Start scan")
-
-download_placeholder = st.empty()
 st.session_state.setdefault("live_logs", [])
 st.session_state.setdefault("live_scan_running", False)
+st.session_state.setdefault("scan_stop_requested", False)
+st.session_state.setdefault("scan_process", None)
+st.session_state.setdefault("scan_output_queue", None)
+st.session_state.setdefault("scan_reader_thread", None)
+st.session_state.setdefault("scan_output_path", None)
+st.session_state.setdefault("scan_report_data", None)
+st.session_state.setdefault("scan_report_path", None)
+st.session_state.setdefault("latest_run_summary", None)
+
+_render_scan_controls()
+
+download_placeholder = st.empty()
 with st.expander("Show live logs", expanded=False):
     live_log_box = st.empty()
-    if st.session_state["live_logs"]:
-        live_log_box.text("\n".join(st.session_state["live_logs"][-200:]))
-    elif st.session_state["live_scan_running"]:
-        live_log_box.write("Live logs will appear here while the scan runs.")
-    else:
-        live_log_box.write("No live logs in this session. Run a scan to see them here.")
-
-latest_run_summary = None
-last_report_path = None
+    if st.session_state["live_scan_running"]:
+        _drain_scan_output()
+    _render_live_logs(live_log_box, st.session_state["live_logs"], st.session_state["live_scan_running"])
 
 
 def _resolve_screenshot_path(raw_path: str | None) -> Path | None:
@@ -82,69 +257,40 @@ def load_latest_report():
     reports = sorted(REPORTS_DIR.glob("**/site.json"), key=lambda p: p.stat().st_mtime, reverse=True)
     return reports[0] if reports else None
 
+if st.session_state["scan_report_data"] and not st.session_state["live_scan_running"]:
+    report_data = st.session_state["scan_report_data"]
+    latest_run_summary = st.session_state.get("latest_run_summary")
+    last_report_path = st.session_state.get("scan_report_path")
+else:
+    latest_run_summary = st.session_state.get("latest_run_summary")
+    last_report_path = st.session_state.get("scan_report_path")
+    report_data = None
+    if not st.session_state["scan_stop_requested"]:
+        latest = load_latest_report()
+        if latest and latest.exists() and not st.session_state["live_scan_running"]:
+            try:
+                report_data = json.loads(latest.read_text(encoding="utf-8"))
+            except Exception:
+                report_data = None
+            last_report_path = latest
 
-if scan_btn and url:
-    timestamp = int(time.time())
-    out_dir = REPORTS_DIR / f"scan_{timestamp}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_json = out_dir / "site.json"
-    st.session_state["live_logs"] = []
-    st.session_state["live_scan_running"] = True
-
-    cmd = [sys.executable, "-m", "humanonn", "scan", url, "--json", str(out_json)]
-    st.info(f"Running: {' '.join(cmd)}")
-
-    with st.spinner("Scanning — this may take a few minutes depending on the target..."):
-        # stream stdout from subprocess
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        try:
-            for line in process.stdout:
-                st.session_state["live_logs"].append(line.rstrip())
-                # keep the live log box compact
-                live_log_box.text("\n".join(st.session_state["live_logs"][-200:]))
-            process.wait()
-        except Exception as exc:
-            st.session_state["live_logs"].append(f"ERROR: {exc}")
-            live_log_box.text("\n".join(st.session_state["live_logs"][-200:]))
-        finally:
-            st.session_state["live_scan_running"] = False
-
-    if out_json.exists():
-        st.success("Scan complete — report ready")
-        with open(out_json, "r", encoding="utf-8") as f:
-            data = f.read()
-        download_placeholder.download_button("Download report (JSON)", data, file_name=out_json.name, mime="application/json")
-        last_report_path = out_json
-        # try to extract a brief summary from the produced report
-        try:
-            parsed = json.loads(data)
-            score_block = parsed.get("score") if isinstance(parsed.get("score"), dict) else {}
-            vibe = parsed.get("vibe_score") or score_block.get("vibe_score") or parsed.get("final_score")
-            findings = parsed.get("findings") or parsed.get("flagged_issues") or []
-            latest_run_summary = f"{url} — {len(findings)} findings — vibe: {vibe}"
-        except Exception:
-            latest_run_summary = f"{url} — report ready"
-    else:
-        st.error("Scan did not produce a report — check logs above.")
+if not st.session_state["live_scan_running"] and report_data:
+    report_json = json.dumps(report_data, indent=2)
+    download_placeholder.download_button("Download report (JSON)", report_json, file_name=(Path(last_report_path).name if last_report_path else "site.json"), mime="application/json")
+else:
+    download_placeholder.empty()
 
 
 st.markdown("---")
-
-# Attempt to locate a latest report if one exists
-latest = last_report_path or load_latest_report()
-report_data = None
-if latest and latest.exists():
-    try:
-        report_data = json.loads(latest.read_text(encoding="utf-8"))
-    except Exception:
-        report_data = None
 
 # Top-level layout: left (flagged issues) and right (metrics + summaries)
 left_col, right_col = st.columns([6, 7])
 
 with left_col:
     st.header("Findings")
-    if report_data:
+    if st.session_state["live_scan_running"]:
+        st.write("Scan running. Metrics and findings will reappear after the current site finishes.")
+    elif report_data:
         flagged_findings = _flagged_findings(report_data)
         with st.expander(f"Flagged Issues ({len(flagged_findings)})", expanded=True):
             if flagged_findings:
@@ -158,7 +304,9 @@ with left_col:
 
 with right_col:
     st.header("Metrics")
-    if report_data:
+    if st.session_state["live_scan_running"]:
+        st.write("Metrics hidden until the new scan completes.")
+    elif report_data:
         score_block = report_data.get("score") if isinstance(report_data.get("score"), dict) else {}
         vibe = report_data.get("vibe_score") or score_block.get("vibe_score") or report_data.get("final_score")
         humanness = report_data.get("humanness_score") or score_block.get("humanness_score")
@@ -179,6 +327,12 @@ with right_col:
         st.markdown(f"**Cluster Bonus:** {cluster if cluster is not None else '—'}")
         st.markdown(f"**Score Mode:** {score_mode}")
         st.markdown(f"**Flagged Signals:** {flagged_count}/{total_findings}")
+        scan_metadata = report_data.get("scan_metadata") if isinstance(report_data.get("scan_metadata"), dict) else {}
+        if scan_metadata:
+            st.markdown(f"**Verified Components:** {scan_metadata.get('verified_components', 0)}")
+            st.markdown(f"**Style-Verified Components:** {scan_metadata.get('style_verified_components', 0)}")
+            st.markdown(f"**Unverified Components:** {scan_metadata.get('unverified_components', 0)}")
+            st.markdown(f"**Interaction Coverage:** {scan_metadata.get('interaction_coverage_ratio', 'â€”')}")
 
         tier_counts = score_block.get("tier_counts")
         if isinstance(tier_counts, dict) and tier_counts:
@@ -190,7 +344,7 @@ with right_col:
         screenshot_file = _resolve_screenshot_path(screenshot_path)
         st.markdown("**Screenshot:**")
         if screenshot_file:
-            st.image(str(screenshot_file), use_container_width=True)
+            st.image(str(screenshot_file), width='stretch')
         else:
             st.write("Screenshot not found.")
 
@@ -227,3 +381,7 @@ with right_col:
 
 st.markdown("---")
 st.write("Server notes: Ensure `.venv` is activated and dependencies installed. Use `python -m playwright install chromium` if needed.")
+
+if st.session_state["live_scan_running"]:
+    time.sleep(1)
+    st.rerun()
