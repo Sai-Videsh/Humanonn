@@ -2,7 +2,7 @@ __pycache__/
 *.py[cod]
 .venv/
 .env
-reports/
+/reports/
 .pytest_cache/
 tests/logs_lovable.md
 Humanonn.pdf
