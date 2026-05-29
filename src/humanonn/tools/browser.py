@@ -596,9 +596,6 @@ def _capture_component_with_retries(
             elif classifier["width"] == 0 or classifier["height"] == 0:
                 skip_reason = "zero-size element"
                 pass_allowed = 0
-            elif classifier["isOffscreen"]:
-                skip_reason = "element is off-screen"
-                pass_allowed = 0
             elif classifier["disabled"]:
                 skip_reason = "element is disabled"
                 pass_allowed = 0
@@ -1167,9 +1164,14 @@ _DISCOVER_SECTIONS_SCRIPT = """
     return true;
   };
   const nodes = [...document.querySelectorAll("main section, section, article, [data-section], footer, main > div")];
+  const isWrapperOnly = (el) => (
+    el.matches("main > div") &&
+    Boolean(el.querySelector("section, article, [data-section], footer"))
+  );
   const seen = new Set();
   const sections = [];
   for (const el of nodes) {
+    if (isWrapperOnly(el)) continue;
     if (!isVisible(el)) continue;
     const rect = el.getBoundingClientRect();
     const absTop = Math.round(rect.top + window.scrollY);

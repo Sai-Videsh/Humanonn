@@ -8,6 +8,8 @@ from pathlib import Path
 from humanonn.agent import HumanonnAgent
 from humanonn.config import load_settings
 from humanonn.reports import format_console_report, report_to_dict
+from humanonn.runtime import tee_output
+from humanonn.tools.browser import _artifact_root
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -19,6 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--json", dest="json_path", help="Write the full report JSON to this path.")
     scan.add_argument("--all", action="store_true", help="Show clear and flagged findings in console output.")
     scan.add_argument("--quiet", action="store_true", help="Disable scan progress logs in the terminal.")
+    scan.add_argument("--no-llm", action="store_true", help="Disable all model calls and run deterministic scanning only.")
 
     return parser
 
@@ -31,20 +34,30 @@ def main() -> None:
         return
 
     settings = load_settings()
+    if args.no_llm:
+        settings = replace(settings, force_no_llm=True)
     if args.quiet:
         settings = replace(settings, terminal_logs=False)
     agent = HumanonnAgent(settings)
-    try:
-        report = agent.scan(args.url)
-    except RuntimeError as exc:
-        parser.exit(1, f"Humanonn scan failed: {exc}\n")
+    log_path = _resolve_log_path(args.url, settings, args.json_path)
+    with tee_output(log_path):
+        try:
+            report = agent.scan(args.url)
+        except RuntimeError as exc:
+            parser.exit(1, f"Humanonn scan failed: {exc}\n")
 
-    print(format_console_report(report, show_all=args.all))
-    if args.json_path:
-        path = Path(args.json_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(report_to_dict(report), indent=2), encoding="utf-8")
-        print(f"\nJSON report written to {path}")
+        print(format_console_report(report, show_all=args.all))
+        if args.json_path:
+            path = Path(args.json_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(report_to_dict(report), indent=2), encoding="utf-8")
+            print(f"\nJSON report written to {path}")
+
+
+def _resolve_log_path(url: str, settings, json_path: str | None) -> Path:
+    if json_path:
+        return Path(json_path).with_name("scan.log")
+    return _artifact_root(url, settings) / "scan.log"
 
 
 if __name__ == "__main__":

@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: humanonn
+    env: docker
+    autoDeploy: true
+    healthCheckPath: /
+    plan: starter

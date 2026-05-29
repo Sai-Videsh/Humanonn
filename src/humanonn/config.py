@@ -43,9 +43,19 @@ class Settings:
     stability_checks: int
     pass2_wait_multiplier: float
     pass3_wait_multiplier: float
+    force_no_llm: bool = False
+    llm_adjustment_gate_enabled: bool = False
+    llm_adjustment_multiplier_enabled: bool = True
+    llm_adjustment_evidence_floor: float = 0.35
+    llm_adjustment_single_source_cap: float = 5.0
+    llm_adjustment_headroom_enabled: bool = True
+    smart_summary_enabled: bool = True
+    dynamic_findings_enabled: bool = True
 
     @property
     def llm_enabled(self) -> bool:
+        if self.force_no_llm:
+            return False
         return any(self.api_keys_for(candidate.provider) for candidate in route_for("main_orchestrator"))
 
     def api_key_for(self, provider: str) -> str | None:
@@ -116,6 +126,14 @@ def load_settings() -> Settings:
         stability_checks=int(os.getenv("HUMANONN_STABILITY_CHECKS", "8")),
         pass2_wait_multiplier=float(os.getenv("HUMANONN_PASS2_WAIT_MULTIPLIER", "1.6")),
         pass3_wait_multiplier=float(os.getenv("HUMANONN_PASS3_WAIT_MULTIPLIER", "2.4")),
+        force_no_llm=os.getenv("HUMANONN_NO_LLM", "false").lower() == "true",
+        llm_adjustment_gate_enabled=os.getenv("HUMANONN_LLM_ADJUSTMENT_GATE", "false").lower() == "true",
+        llm_adjustment_multiplier_enabled=os.getenv("HUMANONN_LLM_ADJUSTMENT_MULTIPLIER_ENABLED", "true").lower() != "false",
+        llm_adjustment_evidence_floor=float(os.getenv("HUMANONN_LLM_ADJUSTMENT_EVIDENCE_FLOOR", "0.35")),
+        llm_adjustment_single_source_cap=float(os.getenv("HUMANONN_LLM_ADJUSTMENT_SINGLE_SOURCE_CAP", "5.0")),
+        llm_adjustment_headroom_enabled=os.getenv("HUMANONN_LLM_ADJUSTMENT_HEADROOM_ENABLED", "true").lower() != "false",
+        smart_summary_enabled=os.getenv("HUMANONN_SMART_SUMMARY", "true").lower() != "false",
+        dynamic_findings_enabled=os.getenv("HUMANONN_DYNAMIC_FINDINGS", "true").lower() != "false",
     )
 
 

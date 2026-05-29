@@ -38,7 +38,9 @@ class HumanonnAgent:
                 report.agent_notes.append(f"Main orchestrator fallback chain failed; used deterministic fallback: {exc}")
         else:
             report = self._scan_deterministic(url)
-            if not self.settings.llm_enabled:
+            if self.settings.force_no_llm:
+                report.agent_notes.append("LLM path disabled by --no-llm/HUMANONN_NO_LLM; used deterministic scanner.")
+            else:
                 report.agent_notes.append("Main orchestrator API key is not configured; used deterministic scanner.")
         elapsed_ms = round((time.perf_counter() - started_at) * 1000)
         elapsed_seconds = elapsed_ms / 1000
@@ -236,6 +238,13 @@ class HumanonnAgent:
     def _finalize_smart_report(self) -> AuditReport:
         if self.registry.snapshot is None:
             raise RuntimeError("LLM scoring requires a completed crawl snapshot.")
+        self.registry.snapshot.raw["llm_adjustment_gate_enabled"] = self.settings.llm_adjustment_gate_enabled
+        self.registry.snapshot.raw["llm_adjustment_multiplier_enabled"] = self.settings.llm_adjustment_multiplier_enabled
+        self.registry.snapshot.raw["llm_adjustment_evidence_floor"] = self.settings.llm_adjustment_evidence_floor
+        self.registry.snapshot.raw["llm_adjustment_single_source_cap"] = self.settings.llm_adjustment_single_source_cap
+        self.registry.snapshot.raw["llm_adjustment_headroom_enabled"] = self.settings.llm_adjustment_headroom_enabled
+        self.registry.snapshot.raw["smart_summary_enabled"] = self.settings.smart_summary_enabled
+        self.registry.snapshot.raw["dynamic_findings_enabled"] = self.settings.dynamic_findings_enabled
         terminal_log("Building deterministic baseline before smart scoring", self.settings.terminal_logs)
         base_report = self.registry.generate_report()
         force_vision_override = bool(self.registry.snapshot.raw.get("needs_vision_override")) or any(

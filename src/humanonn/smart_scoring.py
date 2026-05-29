@@ -44,8 +44,11 @@ VISION_OVERRIDE_SIGNAL_IDS = {
 }
 
 VISION_PATTERN_ALIASES: dict[str, str] = {
+    "all headings visually centered": "all_centered_headings",
     "bento grid": "bento_grid",
     "bento grid layout": "bento_grid",
+    "floating badge": "beta_badge",
+    "floating badge above h1": "beta_badge",
     "glassmorphism": "glassmorphism",
     "glassmorphism cards": "glassmorphism",
     "frosted glass": "glassmorphism",
@@ -56,6 +59,32 @@ VISION_PATTERN_ALIASES: dict[str, str] = {
     "pill buttons": "pill_buttons",
 }
 
+VISION_SIGNAL_ID_ALIASES: dict[str, str] = {
+    "all headings visually centered": "all_centered_headings",
+    "floating_badge": "beta_badge",
+    "floating_badge_above_h1": "beta_badge",
+}
+
+SMART_SCORING_GATE_MIN = 25
+SMART_SCORING_GATE_MAX = 65
+AMBIGUITY_REVIEW_CONFIDENCE_MIN = 0.3
+AMBIGUITY_REVIEW_CONFIDENCE_MAX = 0.8
+HYBRID_SIGNAL_MIN_CONFIDENCE = 0.55
+HYBRID_TRIGGER_SIGNAL_IDS = {
+    "pill_buttons",
+    "mesh_gradient",
+    "glassmorphism",
+    "gradient_text",
+    "bento_grid",
+    "all_centered_headings",
+    "generic_ctas",
+    "dynamic_injected_styles",
+    "canvas_webgl_hero_background",
+    "canvas_rendered_ui",
+    "stock_image_pattern",
+    "inter_only",
+}
+
 
 def run_smart_scoring(
     snapshot: AuditSnapshot,
@@ -63,23 +92,43 @@ def run_smart_scoring(
     router: ModelRouter,
 ) -> AuditReport:
     vision_override = bool(snapshot.raw.get("needs_vision_override"))
-    if not vision_override and not 38 <= base_report.score.vibe_score <= 52:
+    manifest = _load_manifest(snapshot.raw.get("manifest_path"))
+    evidence_pack = _build_evidence_pack(snapshot, base_report.findings, manifest)
+    hybrid_signal_trigger, hybrid_trigger_signal_ids = _has_hybrid_signal_trigger(base_report.findings, evidence_pack)
+    within_smart_gate = SMART_SCORING_GATE_MIN <= base_report.score.vibe_score <= SMART_SCORING_GATE_MAX
+    should_run_smart_scoring = vision_override or within_smart_gate or hybrid_signal_trigger
+    smart_notes = list(base_report.agent_notes)
+    smart_summary_enabled = bool(snapshot.raw.get("smart_summary_enabled", True))
+    dynamic_findings_enabled = bool(snapshot.raw.get("dynamic_findings_enabled", True))
+
+    if hybrid_signal_trigger and not within_smart_gate and not vision_override:
+        smart_notes.append(
+            "Forced smart scoring from hybrid trigger signals outside score gate: "
+            f"{', '.join(hybrid_trigger_signal_ids[:8])}."
+        )
+
+    if not should_run_smart_scoring:
         report = replace(base_report)
         report.agent_notes = [
-            *base_report.agent_notes,
-            "Skipped smart scoring because the deterministic score was outside the 38-52 borderline window and no vision override was requested.",
+            *smart_notes,
+            (
+                "Skipped smart scoring because deterministic score was outside the "
+                f"{SMART_SCORING_GATE_MIN}-{SMART_SCORING_GATE_MAX} gate, no vision override was requested, "
+                "and no hybrid signal triggers were found."
+            ),
         ]
         return report
 
     artifact_root = Path(snapshot.raw.get("artifact_root", "")) if snapshot.raw.get("artifact_root") else None
-    manifest = _load_manifest(snapshot.raw.get("manifest_path"))
-    evidence_pack = _build_evidence_pack(snapshot, base_report.findings, manifest)
 
-    if not evidence_pack["ambiguous_signals"] and not vision_override:
+    if not evidence_pack["ambiguous_signals"] and not vision_override and not hybrid_signal_trigger:
         report = replace(base_report)
         report.agent_notes = [
-            *base_report.agent_notes,
-            "Skipped smart scoring because no ambiguous signals fell in the 0.4-0.7 confidence review band.",
+            *smart_notes,
+            (
+                "Skipped smart scoring because no ambiguous signals fell in the "
+                f"{AMBIGUITY_REVIEW_CONFIDENCE_MIN:.1f}-{AMBIGUITY_REVIEW_CONFIDENCE_MAX:.1f} confidence review band."
+            ),
         ]
         return report
 
@@ -93,6 +142,8 @@ def run_smart_scoring(
         ambiguity_result,
         vision_result,
         embedding_result,
+        include_summary=smart_summary_enabled,
+        include_dynamic_findings=dynamic_findings_enabled,
     )
 
     # Surface archetype label from embedding similarities (if available)
@@ -108,26 +159,60 @@ def run_smart_scoring(
         base_report.findings,
         [*aggregator_result.get("signal_overrides", []), *ambiguity_result.get("signal_reviews", []), *vision_overrides],
     )
-    llm_adjustment = float(aggregator_result.get("score_adjustment", 0))
+    raw_llm_adjustment = float(aggregator_result.get("score_adjustment", 0))
+    llm_adjustment = raw_llm_adjustment
+    llm_adjustment_gate_enabled = bool(snapshot.raw.get("llm_adjustment_gate_enabled", False))
+    llm_adjustment_multiplier_enabled = bool(snapshot.raw.get("llm_adjustment_multiplier_enabled", True))
+    llm_adjustment_evidence_floor = float(snapshot.raw.get("llm_adjustment_evidence_floor", 0.35))
+    llm_adjustment_single_source_cap = float(snapshot.raw.get("llm_adjustment_single_source_cap", 5.0))
+    llm_adjustment_headroom_enabled = bool(snapshot.raw.get("llm_adjustment_headroom_enabled", True))
 
     # Re-validate post-merge: compute deterministic score without LLM adjustment
     # If the merged deterministic score is now confidently outside the borderline
-    # window (38-52), zero out the LLM adjustment because overrides already resolved ambiguity.
+    # window, zero out the LLM adjustment because overrides already resolved ambiguity.
     zeroed_llm_note = None
     post_merge_deterministic = score_findings(merged_findings, score_mode="smart_llm", llm_adjustment=0.0)
+    if llm_adjustment_multiplier_enabled and llm_adjustment != 0:
+        llm_adjustment, scaling_note = _scale_llm_adjustment(
+            raw_llm_adjustment=raw_llm_adjustment,
+            post_merge_vibe_score=post_merge_deterministic.vibe_score,
+            ambiguity_result=ambiguity_result,
+            vision_result=vision_result,
+            embedding_result=embedding_result,
+            aggregator_result=aggregator_result,
+            archetype_label=archetype_label,
+            evidence_floor=llm_adjustment_evidence_floor,
+            single_source_cap=llm_adjustment_single_source_cap,
+            headroom_enabled=llm_adjustment_headroom_enabled,
+        )
+        smart_notes.append(scaling_note)
+
     strong_positive_llm_evidence = (
         llm_adjustment > 0
         and archetype_label == "vibe_coded"
         and aggregator_result.get("archetype_label") == "vibe_coded"
         and (vision_result.get("score_hint", {}) or {}).get("direction") == "up"
     )
-    if not 38 <= post_merge_deterministic.vibe_score <= 52 and not strong_positive_llm_evidence:
-        zeroed_llm_note = (
-            f"Zeroed LLM adjustment because post-merge deterministic score {post_merge_deterministic.vibe_score} is outside the 38-52 borderline window."
-        )
-        llm_adjustment = 0.0
+    if llm_adjustment_gate_enabled:
+        if not SMART_SCORING_GATE_MIN <= post_merge_deterministic.vibe_score <= SMART_SCORING_GATE_MAX and not strong_positive_llm_evidence:
+            zeroed_llm_note = (
+                (
+                    "Zeroed LLM adjustment because post-merge deterministic score "
+                    f"{post_merge_deterministic.vibe_score} is outside the "
+                    f"{SMART_SCORING_GATE_MIN}-{SMART_SCORING_GATE_MAX} smart-scoring window."
+                )
+            )
+            llm_adjustment = 0.0
+    elif llm_adjustment != 0:
+        report_note = f"Applied LLM adjustment {llm_adjustment:+.2f} with HUMANONN_LLM_ADJUSTMENT_GATE=false."
+        smart_notes.append(report_note)
 
     score = score_findings(merged_findings, score_mode="smart_llm", llm_adjustment=llm_adjustment)
+
+    if not smart_summary_enabled:
+        smart_notes.append("Skipped smart summary generation (HUMANONN_SMART_SUMMARY=false).")
+    if not dynamic_findings_enabled:
+        smart_notes.append("Skipped dynamic findings generation (HUMANONN_DYNAMIC_FINDINGS=false).")
 
     report = AuditReport(
         url=base_report.url,
@@ -135,10 +220,10 @@ def run_smart_scoring(
         score=score,
         findings=merged_findings,
         screenshot_path=base_report.screenshot_path,
-        agent_notes=list(base_report.agent_notes),
-        smart_summary=aggregator_result.get("summary"),
+        agent_notes=smart_notes,
+        smart_summary=aggregator_result.get("summary") if smart_summary_enabled else None,
         archetype_label=archetype_label,
-        dynamic_findings=aggregator_result.get("dynamic_findings", []),
+        dynamic_findings=aggregator_result.get("dynamic_findings", []) if dynamic_findings_enabled else [],
         llm_evidence={
             "ambiguity": {
                 "candidate": _candidate_payload(ambiguity_candidate),
@@ -257,11 +342,17 @@ def _run_aggregator(
     ambiguity_result: dict[str, Any],
     vision_result: dict[str, Any],
     embedding_result: dict[str, Any],
+    include_summary: bool,
+    include_dynamic_findings: bool,
 ) -> tuple[dict[str, Any], Any, list[dict[str, str]]]:
-    prompt = (PROMPT_ROOT / "smart_score.md").read_text(encoding="utf-8")
+    prompt = _build_aggregator_prompt(
+        include_summary=include_summary,
+        include_dynamic_findings=include_dynamic_findings,
+    )
     payload = {
         "site": evidence_pack["site"],
-        "deterministic_findings": evidence_pack["ambiguous_signals"],
+        "deterministic_findings": evidence_pack["scoring_findings"],
+        "uncertain_findings": evidence_pack["ambiguous_signals"],
         "artifact_summary": evidence_pack["artifact_summary"],
         "ambiguity_result": ambiguity_result,
         "vision_result": vision_result,
@@ -269,6 +360,25 @@ def _run_aggregator(
     }
     result, candidate, attempts = router.call_json("json_classification", prompt, payload, temperature=0.1)
     return result, candidate, attempts
+
+
+def _build_aggregator_prompt(include_summary: bool, include_dynamic_findings: bool) -> str:
+    if not include_summary and not include_dynamic_findings:
+        return (PROMPT_ROOT / "smart_score_compact.md").read_text(encoding="utf-8")
+
+    prompt = (PROMPT_ROOT / "smart_score.md").read_text(encoding="utf-8")
+    constraints: list[str] = []
+    if not include_summary:
+        constraints.append(
+            "Summary output is disabled. Return \"summary\": null and do not generate summary prose."
+        )
+    if not include_dynamic_findings:
+        constraints.append(
+            "Dynamic findings output is disabled. Return \"dynamic_findings\": [] and do not generate dynamic finding entries."
+        )
+    if not constraints:
+        return prompt
+    return prompt + "\n\nAdditional output constraints:\n- " + "\n- ".join(constraints)
 
 
 def _build_evidence_pack(
@@ -356,16 +466,64 @@ def _build_evidence_pack(
             "fix": finding.fix,
         }
         for finding in findings
-        if SIGNAL_BY_ID[finding.id].kind == "ambiguous" and 0.4 <= finding.confidence <= 0.7
+        if (
+            SIGNAL_BY_ID[finding.id].kind == "ambiguous"
+            and AMBIGUITY_REVIEW_CONFIDENCE_MIN <= finding.confidence <= AMBIGUITY_REVIEW_CONFIDENCE_MAX
+        )
+    ]
+    scoring_findings = [
+        {
+            "id": finding["id"],
+            "name": finding["name"],
+            "tier": finding["tier"],
+            "bucket": finding["bucket"],
+            "weight": SIGNAL_BY_ID[finding["id"]].weight,
+            "confidence": finding["confidence"],
+            "flagged": finding["flagged"],
+            "reason": finding["reason"],
+            "fix": finding["fix"],
+            "evidence": finding["evidence"],
+        }
+        for finding in base_findings
+        if finding["flagged"]
+        or finding["id"] in VISION_OVERRIDE_SIGNAL_IDS
+        or (
+            SIGNAL_BY_ID[finding["id"]].kind == "ambiguous"
+            and AMBIGUITY_REVIEW_CONFIDENCE_MIN <= finding["confidence"] <= AMBIGUITY_REVIEW_CONFIDENCE_MAX
+        )
     ]
     site_signature = _site_signature(site, base_findings, artifact_summary)
     return {
         "site": site,
         "base_findings": base_findings,
+        "scoring_findings": scoring_findings,
         "artifact_summary": artifact_summary,
         "ambiguous_signals": ambiguous_signals,
         "site_signature": site_signature,
     }
+
+
+def _has_hybrid_signal_trigger(
+    findings: list[SignalFinding],
+    evidence_pack: dict[str, Any],
+) -> tuple[bool, list[str]]:
+    trigger_ids: list[str] = []
+
+    ambiguous_signals = evidence_pack.get("ambiguous_signals", []) if isinstance(evidence_pack, dict) else []
+    if len(ambiguous_signals) >= 3:
+        trigger_ids.append("ambiguous_cluster")
+
+    for finding in findings:
+        if not finding.flagged:
+            continue
+        if finding.id not in HYBRID_TRIGGER_SIGNAL_IDS:
+            continue
+        if float(finding.confidence) < HYBRID_SIGNAL_MIN_CONFIDENCE:
+            continue
+        trigger_ids.append(finding.id)
+
+    deduped = sorted(set(trigger_ids))
+    return bool(deduped), deduped
 
 
 def _merge_findings(
@@ -398,7 +556,8 @@ def _vision_signal_overrides(vision_result: dict[str, Any]) -> list[dict[str, An
     additional_patterns = vision_result.get("additional_patterns", []) if isinstance(vision_result, dict) else []
     overrides: list[dict[str, Any]] = []
     for item in confirmations:
-        signal_id = item.get("signal_id")
+        signal_id = str(item.get("signal_id", "")).strip()
+        signal_id = VISION_SIGNAL_ID_ALIASES.get(signal_id, signal_id)
         if signal_id not in VISION_OVERRIDE_SIGNAL_IDS and signal_id not in SIGNAL_BY_ID:
             continue
         verdict = str(item.get("verdict", "")).lower()
@@ -482,6 +641,92 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     if not norm_a or not norm_b:
         return 0.0
     return dot / (norm_a * norm_b)
+
+
+def _scale_llm_adjustment(
+    raw_llm_adjustment: float,
+    post_merge_vibe_score: int,
+    ambiguity_result: dict[str, Any],
+    vision_result: dict[str, Any],
+    embedding_result: dict[str, Any],
+    aggregator_result: dict[str, Any],
+    archetype_label: str | None,
+    evidence_floor: float,
+    single_source_cap: float,
+    headroom_enabled: bool,
+) -> tuple[float, str]:
+    source_count = _count_adjustment_sources(
+        raw_llm_adjustment=raw_llm_adjustment,
+        ambiguity_result=ambiguity_result,
+        vision_result=vision_result,
+        embedding_result=embedding_result,
+        aggregator_result=aggregator_result,
+        archetype_label=archetype_label,
+    )
+    capped = _clip(raw_llm_adjustment, -15.0, 15.0)
+    if source_count <= 1:
+        cap = max(0.0, single_source_cap)
+        capped = _clip(capped, -cap, cap)
+
+    evidence_multiplier = 1.0 if source_count >= 3 else 0.8 if source_count == 2 else 0.6 if source_count == 1 else 0.35
+    effective_evidence_floor = _clip(evidence_floor, 0.0, 1.0)
+    evidence_multiplier = _clip(max(effective_evidence_floor, evidence_multiplier), 0.0, 1.0)
+
+    scaled = capped * evidence_multiplier
+    headroom_multiplier = 1.0
+    if headroom_enabled and scaled != 0:
+        if scaled > 0:
+            headroom_multiplier = _clip((100.0 - float(post_merge_vibe_score)) / 100.0, 0.1, 1.0)
+        else:
+            headroom_multiplier = _clip(float(post_merge_vibe_score) / 100.0, 0.1, 1.0)
+        scaled *= headroom_multiplier
+
+    final_adjustment = _clip(scaled, -15.0, 15.0)
+    note = (
+        "Scaled LLM adjustment "
+        f"{raw_llm_adjustment:+.2f} -> {final_adjustment:+.2f} "
+        f"(sources={source_count}, evidence_multiplier={evidence_multiplier:.2f}, headroom_multiplier={headroom_multiplier:.2f})."
+    )
+    return final_adjustment, note
+
+
+def _count_adjustment_sources(
+    raw_llm_adjustment: float,
+    ambiguity_result: dict[str, Any],
+    vision_result: dict[str, Any],
+    embedding_result: dict[str, Any],
+    aggregator_result: dict[str, Any],
+    archetype_label: str | None,
+) -> int:
+    sources = 0
+
+    ambiguity_reviews = ambiguity_result.get("signal_reviews", []) if isinstance(ambiguity_result, dict) else []
+    if ambiguity_reviews:
+        sources += 1
+
+    signal_confirmations = vision_result.get("signal_confirmations", []) if isinstance(vision_result, dict) else []
+    additional_patterns = vision_result.get("additional_patterns", []) if isinstance(vision_result, dict) else []
+    if signal_confirmations or additional_patterns:
+        sources += 1
+
+    embedding_top_label = None
+    if isinstance(embedding_result, dict):
+        similarities = embedding_result.get("similarities", [])
+        if similarities:
+            embedding_top_label = similarities[0].get("label")
+    if archetype_label and archetype_label == aggregator_result.get("archetype_label") and archetype_label == embedding_top_label:
+        sources += 1
+
+    score_hint = (vision_result.get("score_hint", {}) or {}) if isinstance(vision_result, dict) else {}
+    direction = str(score_hint.get("direction", "")).lower()
+    if (raw_llm_adjustment > 0 and direction == "up") or (raw_llm_adjustment < 0 and direction == "down"):
+        sources += 1
+
+    return sources
+
+
+def _clip(value: float, minimum: float, maximum: float) -> float:
+    return max(minimum, min(maximum, value))
 
 
 def _candidate_payload(candidate: Any) -> dict[str, Any]:
