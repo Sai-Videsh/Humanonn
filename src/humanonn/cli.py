@@ -9,6 +9,7 @@ from humanonn.agent import HumanonnAgent
 from humanonn.config import load_settings
 from humanonn.reports import format_console_report, report_to_dict
 from humanonn.runtime import tee_output
+from humanonn.source_code import apply_source_code_score, build_source_only_report
 from humanonn.tools.browser import _artifact_root
 
 
@@ -22,6 +23,11 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--all", action="store_true", help="Show clear and flagged findings in console output.")
     scan.add_argument("--quiet", action="store_true", help="Disable scan progress logs in the terminal.")
     scan.add_argument("--no-llm", action="store_true", help="Disable all model calls and run deterministic scanning only.")
+    scan.add_argument(
+        "--repo-url",
+        dest="repo_url",
+        help="Public GitHub repo URL for source-code scoring (frontend Next.js/React/Tailwind repos only; scans frontend files).",
+    )
 
     return parser
 
@@ -38,11 +44,15 @@ def main() -> None:
         settings = replace(settings, force_no_llm=True)
     if args.quiet:
         settings = replace(settings, terminal_logs=False)
-    agent = HumanonnAgent(settings)
     log_path = _resolve_log_path(args.url, settings, args.json_path)
     with tee_output(log_path):
         try:
-            report = agent.scan(args.url)
+            if settings.live_site_scraping_enabled:
+                agent = HumanonnAgent(settings)
+                report = agent.scan(args.url)
+                report = apply_source_code_score(report, args.repo_url)
+            else:
+                report = build_source_only_report(args.url, args.repo_url)
         except RuntimeError as exc:
             parser.exit(1, f"Humanonn scan failed: {exc}\n")
 

@@ -28,6 +28,7 @@ SIGNALS: list[SignalDefinition] = [
     signal("mesh_gradient", 1, "Mesh gradient / aurora hero background", "deterministic", "origin", "Replace generic aurora treatment with brand-specific art direction."),
     signal("glassmorphism", 1, "Glassmorphism cards", "deterministic", "origin", "Use solid surfaces or apply glass sparingly with clear hierarchy."),
     signal("dark_only", 1, "Dark mode default with no light variant", "deterministic", "origin", "Provide an intentional light variant or make dark mode feel fully resolved."),
+    signal("vibe_builder_domain", 1, "Hosted on a vibe-builder deployment domain", "deterministic", "origin", "Move production sites to an owned domain and verify design provenance."),
 
     signal("gradient_text", 2, "Gradient hero headline text", "deterministic", "origin", "Use plain display type or a more restrained brand treatment."),
     signal("canvas_webgl_hero_background", 2, "Hero background is canvas-rendered or WebGL instead of CSS", "deterministic", "origin", "Use a CSS background or intentionally document the canvas/WebGL treatment."),

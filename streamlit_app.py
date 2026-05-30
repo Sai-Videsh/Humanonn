@@ -73,6 +73,31 @@ def _render_live_logs(placeholder, logs: list[str], running: bool) -> None:
         st.html(log_html, unsafe_allow_javascript=True)
 
 
+def _render_log_window(placeholder, title: str, logs: list[str], empty_running_text: str, empty_idle_text: str) -> None:
+    if logs:
+        body = "\n".join(html.escape(line) for line in logs[-300:])
+    else:
+        body = empty_running_text if st.session_state.get("live_scan_running") else empty_idle_text
+
+    log_html = """
+    <div id="__ID__" style="
+        height: 260px;
+        overflow-y: auto;
+        background: #0f1115;
+        color: #e7e9ee;
+        border: 1px solid #252935;
+        border-radius: 6px;
+        padding: 12px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        ">__BODY__</div>
+    """.replace("__ID__", title).replace("__BODY__", body)
+    with placeholder.container():
+        st.html(log_html, unsafe_allow_javascript=True)
+
+
 def _scan_stdout_reader(process: subprocess.Popen[str], output_queue: queue.Queue[tuple[str, str | int]]) -> None:
     try:
         assert process.stdout is not None
@@ -85,7 +110,7 @@ def _scan_stdout_reader(process: subprocess.Popen[str], output_queue: queue.Queu
         output_queue.put(("error", str(exc)))
 
 
-def _start_scan(url: str) -> None:
+def _start_scan(url: str, repo_url: str | None = None) -> None:
     timestamp = int(time.time())
     out_dir = REPORTS_DIR / f"scan_{timestamp}"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -99,6 +124,8 @@ def _start_scan(url: str) -> None:
     st.session_state["latest_run_summary"] = None
 
     cmd = [sys.executable, "-u", "-m", "humanonn", "scan", url, "--json", str(out_json)]
+    if repo_url:
+        cmd.extend(["--repo-url", repo_url])
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
     process = subprocess.Popen(
         cmd,
@@ -177,12 +204,35 @@ def _drain_scan_output() -> None:
             st.session_state["scan_report_path"] = None
 
 
+def _source_code_log_lines(report_data: dict | None) -> list[str]:
+    if not report_data:
+        return []
+    source_code = report_data.get("source_code") if isinstance(report_data.get("source_code"), dict) else {}
+    logs = source_code.get("scan_log") if isinstance(source_code.get("scan_log"), list) else []
+    if logs:
+        return [str(line) for line in logs]
+    findings = source_code.get("findings") or []
+    fallback: list[str] = []
+    if source_code:
+        repo_url = source_code.get("repo_url", "—")
+        fallback.append(f"Starting source-code scan for {repo_url}.")
+        fallback.append(f"Fetched {source_code.get('files_scanned', 0)} source files for scanning.")
+        for item in findings:
+            if not isinstance(item, dict):
+                continue
+            state = "FLAGGED" if item.get("flagged") else "clear"
+            fallback.append(f"[{state}] {item.get('id', 'unknown')} - {item.get('reason', '')}")
+        if source_code.get("source_code_score") is not None:
+            fallback.append(f"Computed raw source code score {source_code.get('source_code_score', 0)}/{source_code.get('score_cap', 25)}.")
+    return fallback
+
+
 def _render_scan_controls() -> None:
     left, right = st.columns(2)
     start_clicked = left.button("Start scan", disabled=st.session_state["live_scan_running"])
     stop_clicked = right.button("Stop scan", disabled=not st.session_state["live_scan_running"])
     if start_clicked and url:
-        _start_scan(url)
+        _start_scan(url, github_repo_url.strip() or None)
         st.rerun()
     if stop_clicked:
         _stop_scan()
@@ -195,6 +245,11 @@ st.write("Run Humanonn scans from the browser. The server must have the repo and
 _inject_css(REPORTS_DIR / "style.css")
 
 url = st.text_input("URL to scan", "https://example.com")
+github_repo_url = st.text_input(
+    "Public GitHub repo URL for source-code scoring (Optional)",
+    "",
+    placeholder="https://github.com/owner/repo",
+)
 st.session_state.setdefault("live_logs", [])
 st.session_state.setdefault("live_scan_running", False)
 st.session_state.setdefault("scan_stop_requested", False)
@@ -214,6 +269,17 @@ with st.expander("Show live logs", expanded=False):
     if st.session_state["live_scan_running"]:
         _drain_scan_output()
     _render_live_logs(live_log_box, st.session_state["live_logs"], st.session_state["live_scan_running"])
+
+with st.expander("Show source code scan", expanded=False):
+    source_log_box = st.empty()
+    source_logs = _source_code_log_lines(st.session_state.get("scan_report_data") or None)
+    _render_log_window(
+        source_log_box,
+        "humanonn-source-code-log",
+        source_logs,
+        "Source-code scan will appear here after the site scan completes.",
+        "No source-code scan available yet. Run a scan with a GitHub repo URL to see it here.",
+    )
 
 
 def _resolve_screenshot_path(raw_path: str | None) -> Path | None:
@@ -309,6 +375,8 @@ with right_col:
     elif report_data:
         score_block = report_data.get("score") if isinstance(report_data.get("score"), dict) else {}
         vibe = report_data.get("vibe_score") or score_block.get("vibe_score") or report_data.get("final_score")
+        rendered_vibe = score_block.get("rendered_vibe_score")
+        source_code_score = score_block.get("source_code_score", 0)
         humanness = report_data.get("humanness_score") or score_block.get("humanness_score")
         base = report_data.get("base_score") or score_block.get("base_score") or report_data.get("score_base")
         cluster = report_data.get("cluster_bonus") or score_block.get("cluster_bonus") or report_data.get("cluster")
@@ -322,6 +390,15 @@ with right_col:
         st.markdown(f"**URL:** {report_url}")
         st.markdown(f"**Title:** {report_title}")
         st.markdown(f"**Vibe Score:** {vibe if vibe is not None else '—'}/100")
+        if score_mode == "source_only":
+            st.markdown("**Rendered Vibe Score:** —/100")
+            st.markdown("**Source-only mode:** live site scraping is disabled; score is driven by source-code findings.")
+            st.markdown(f"**Source Code Score:** +{source_code_score}")
+            st.markdown(f"**Final Score:** {vibe if vibe is not None else '—'}/100")
+        elif rendered_vibe is not None or source_code_score:
+            st.markdown(f"**Rendered Vibe Score:** {rendered_vibe if rendered_vibe is not None else vibe}/100")
+            st.markdown(f"**Source Code Score:** +{source_code_score}")
+            st.markdown(f"**Final Score:** {vibe if vibe is not None else '—'}/100")
         st.markdown(f"**Humanness Score:** {humanness if humanness is not None else '—'}/100")
         st.markdown(f"**Base Score:** {base if base is not None else '—'}")
         st.markdown(f"**Cluster Bonus:** {cluster if cluster is not None else '—'}")
@@ -365,6 +442,27 @@ with right_col:
                     st.markdown(f"- {note}")
             else:
                 st.write("No agent notes.")
+
+        source_code = report_data.get("source_code") if isinstance(report_data.get("source_code"), dict) else {}
+        with st.expander("Source Code Findings", expanded=bool(source_code)):
+            if source_code:
+                st.markdown(f"**Repo:** {source_code.get('repo_url', '—')}")
+                st.markdown(f"**Files Scanned:** {source_code.get('files_scanned', 0)}")
+                st.markdown(f"**Source Code Score:** +{source_code.get('source_code_score', 0)}")
+                source_findings = source_code.get("findings") or []
+                flagged_source_findings = [item for item in source_findings if isinstance(item, dict) and item.get("flagged")]
+                if flagged_source_findings:
+                    for item in flagged_source_findings:
+                        st.markdown(
+                            f"- T{item.get('tier', '?')} {item.get('bucket', '?')} +{item.get('points', 0)} "
+                            f"**{item.get('name', item.get('id', 'Source finding'))}**: {item.get('reason', '')}"
+                        )
+                elif source_code.get("error"):
+                    st.write(f"Source scan failed: {source_code.get('error')}")
+                else:
+                    st.write("No source-code checks were flagged.")
+            else:
+                st.write("No GitHub repo was provided for this scan.")
 
         with st.expander("Dynamic Findings", expanded=True):
             dynamic_findings = report_data.get("dynamic_findings") or []

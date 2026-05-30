@@ -32,8 +32,11 @@ MODEL_ROUTES: dict[ModelTask, list[ModelCandidate]] = {
     ],
     "vision": [
         ModelCandidate("vision", "gemini", "gemini-2.5-flash", "primary", "MODEL_VISION_GEMINI25_FLASH"),
+        ModelCandidate("vision", "gemini", "gemini-2.0-flash", "direct_fallback", "MODEL_VISION_GEMINI20_FLASH"),
+        ModelCandidate("vision", "gemini", "gemini-1.5-flash", "direct_fallback", "MODEL_VISION_GEMINI15_FLASH"),
+        ModelCandidate("vision", "openrouter", "qwen/qwen3-vl-32b-instruct", "direct_fallback", "MODEL_VISION_OPENROUTER_QWEN3_VL_32B", direct_api=False),
+        ModelCandidate("vision", "openrouter", "qwen/qwen2.5-vl-32b-instruct:free", "free_fallback", "MODEL_VISION_OPENROUTER_QWEN25_VL_32B_FREE", direct_api=False),
         ModelCandidate("vision", "openrouter", "qwen/qwen2.5-vl-72b-instruct", "last_fallback", "MODEL_VISION_OPENROUTER_QWEN25_VL_72B", direct_api=False),
-        ModelCandidate("vision", "openrouter", "z-ai/glm-4v", "last_fallback", "MODEL_VISION_OPENROUTER_GLM4V", direct_api=False),
     ],
     "fast_ambiguity": [
         ModelCandidate("fast_ambiguity", "groq", "llama-3.1-8b-instant", "primary", "MODEL_FAST_GROQ_LLAMA31_8B"),
@@ -42,6 +45,9 @@ MODEL_ROUTES: dict[ModelTask, list[ModelCandidate]] = {
     ],
     "fix_generation": [
         ModelCandidate("fix_generation", "deepseek", "deepseek-chat", "primary", "MODEL_FIX_DEEPSEEK_V3"),
+        ModelCandidate("fix_generation", "deepseek", "deepseek-reasoner", "direct_fallback", "MODEL_FIX_DEEPSEEK_REASONER"),
+        ModelCandidate("fix_generation", "deepseek", "deepseek-coder", "direct_fallback", "MODEL_FIX_DEEPSEEK_CODER"),
+        ModelCandidate("fix_generation", "deepseek", "deepseek-v3", "direct_fallback", "MODEL_FIX_DEEPSEEK_V3_ALT"),
         ModelCandidate("fix_generation", "openrouter", "qwen/qwen2.5-coder-32b-instruct", "last_fallback", "MODEL_FIX_OPENROUTER_QWEN25_CODER_32B", direct_api=False),
         ModelCandidate("fix_generation", "groq", "llama-3.3-70b-versatile", "direct_fallback", "MODEL_FIX_GROQ_LLAMA33_70B"),
     ],

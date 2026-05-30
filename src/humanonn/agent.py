@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 import urllib.request
 from pathlib import Path
@@ -19,6 +20,12 @@ from humanonn.tools.schemas import TOOL_DEFINITIONS
 
 
 PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "agent_system.md"
+
+
+def _prompt_path() -> Path:
+    if os.getenv("HUMANONN_PRODUCTION", "false").lower() == "true":
+        return Path(os.getenv("HUMANONN_PROMPT_PATH", "/app/prompts/agent_system.md"))
+    return PROMPT_PATH
 
 
 class HumanonnAgent:
@@ -67,6 +74,8 @@ class HumanonnAgent:
                     report = self._run_groq_orchestrator(url, candidate)
                 elif candidate.provider == "gemini":
                     report = self._run_gemini_orchestrator(url, candidate)
+                elif candidate.provider == "openrouter":
+                    report = self._run_openrouter_orchestrator(url, candidate)
                 else:
                     failures.append(f"{candidate.bug_tag}: provider_not_supported")
                     continue
@@ -79,7 +88,7 @@ class HumanonnAgent:
 
     def _run_groq_orchestrator(self, url: str, candidate: ModelCandidate) -> AuditReport:
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": PROMPT_PATH.read_text(encoding="utf-8")},
+            {"role": "system", "content": _prompt_path().read_text(encoding="utf-8")},
             {"role": "user", "content": f"Audit this deployed website: {url}"},
         ]
         last_error: Exception | None = None
@@ -127,6 +136,71 @@ class HumanonnAgent:
                 last_error = exc
         if last_error is None:
             raise RuntimeError("Missing Groq API key.")
+        raise last_error
+
+    def _run_openrouter_orchestrator(self, url: str, candidate: ModelCandidate) -> AuditReport:
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": _prompt_path().read_text(encoding="utf-8")},
+            {"role": "user", "content": f"Audit this deployed website: {url}"},
+        ]
+        last_error: Exception | None = None
+        payload_base = {
+            "model": candidate.model,
+            "tools": TOOL_DEFINITIONS,
+            "tool_choice": "auto",
+            "temperature": 0.1,
+        }
+        for api_key in self.settings.api_keys_for("openrouter"):
+            try:
+                for _ in range(8):
+                    payload = {**payload_base, "messages": messages}
+                    request = urllib.request.Request(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        data=json.dumps(payload).encode("utf-8"),
+                        headers={
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {api_key}",
+                            "HTTP-Referer": "https://humanonn.local",
+                            "X-Title": "Humanonn",
+                        },
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(request, timeout=self.settings.navigation_timeout_ms / 1000) as response:
+                        body = json.loads(response.read().decode("utf-8"))
+                    message = body["choices"][0]["message"]
+                    tool_calls = message.get("tool_calls") or []
+                    if not tool_calls:
+                        if self.registry.snapshot is not None:
+                            report = self._finalize_smart_report()
+                            report.agent_notes.append(f"{candidate.bug_tag} completed without another tool call.")
+                            return report
+                        if self.registry.report is not None:
+                            self.registry.report.agent_notes.append(f"{candidate.bug_tag} completed without another tool call.")
+                            return self.registry.report
+                        return self.registry.generate_report()
+
+                    messages.append(message)
+                    for tool_call in tool_calls:
+                        function = tool_call.get("function", {})
+                        tool_name = function.get("name", "")
+                        args = json.loads(function.get("arguments") or "{}")
+                        result = self.registry.execute(tool_name, args)
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call["id"],
+                                "content": json.dumps(result, default=str),
+                            }
+                        )
+                        if tool_name == "generate_report":
+                            return self._finalize_smart_report()
+                report = self._finalize_smart_report()
+                report.agent_notes.append(f"{candidate.bug_tag} reached max agent iterations; finalized current findings.")
+                return report
+            except Exception as exc:
+                last_error = exc
+        if last_error is None:
+            raise RuntimeError("Missing OpenRouter API key.")
         raise last_error
 
     def _run_gemini_orchestrator(self, url: str, candidate: ModelCandidate) -> AuditReport:

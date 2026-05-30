@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urlparse
 from collections import Counter
 from typing import Any, Callable
 
@@ -79,6 +80,25 @@ def dark_only(snapshot: AuditSnapshot, signal: SignalDefinition) -> SignalFindin
     has_light_toggle = any("theme" in link.get("text", "").lower() or "light" in link.get("text", "").lower() for link in snapshot.links)
     flagged = is_dark and not has_light_toggle
     return finding(signal, flagged, 0.65, "Body background is dark and no obvious light/theme toggle was found." if flagged else "Dark-only pattern not confirmed.", {"backgroundColor": bg})
+
+
+def vibe_builder_domain(snapshot: AuditSnapshot, signal: SignalDefinition) -> SignalFinding:
+    host = (urlparse(snapshot.url).hostname or "").lower()
+    builder_domains = (
+        "lovable.app",
+        "lovableproject.com",
+        "bolt.new",
+        "bolt.host",
+        "v0.app",
+    )
+    matched = next((domain for domain in builder_domains if host == domain or host.endswith(f".{domain}")), None)
+    return finding(
+        signal,
+        bool(matched),
+        1.0,
+        f"Site is hosted on {matched}, a known vibe-builder deployment domain." if matched else "No known vibe-builder deployment domain detected.",
+        {"host": host, "matched_domain": matched},
+    )
 
 
 def gradient_text(snapshot: AuditSnapshot, signal: SignalDefinition) -> SignalFinding:
@@ -363,6 +383,7 @@ EVALUATORS: dict[str, Evaluator] = {
     "mesh_gradient": mesh_gradient,
     "glassmorphism": glassmorphism,
     "dark_only": dark_only,
+    "vibe_builder_domain": vibe_builder_domain,
     "gradient_text": gradient_text,
     "canvas_webgl_hero_background": canvas_webgl_hero_background,
     "canvas_rendered_ui": canvas_rendered_ui,

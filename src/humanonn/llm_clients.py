@@ -37,7 +37,7 @@ class ModelRouter:
                 elif candidate.provider == "gemini":
                     result = self._call_gemini(candidate, system_prompt, user_payload, image_paths or [])
                 elif candidate.provider == "openrouter":
-                    result = self._call_openrouter(candidate, system_prompt, user_payload, temperature)
+                    result = self._call_openrouter(candidate, system_prompt, user_payload, temperature, image_paths or [])
                 elif candidate.provider == "deepseek":
                     result = self._call_deepseek(candidate, system_prompt, user_payload, temperature)
                 else:
@@ -149,29 +149,48 @@ class ModelRouter:
         system_prompt: str,
         user_payload: dict[str, Any],
         temperature: float,
+        image_paths: list[str] | None = None,
     ) -> Any:
-        api_key = self.settings.api_key_for("openrouter")
+        user_content: str | list[dict[str, Any]]
+        if image_paths:
+            user_content = [
+                {"type": "text", "text": json.dumps(user_payload, ensure_ascii=True)},
+                *_openrouter_image_parts(image_paths),
+            ]
+        else:
+            user_content = json.dumps(user_payload, ensure_ascii=True)
         payload = {
             "model": candidate.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": json.dumps(user_payload, ensure_ascii=True)},
+                {"role": "user", "content": user_content},
             ],
             "temperature": temperature,
-            "response_format": {"type": "json_object"},
         }
-        request = urllib.request.Request(
-            "https://openrouter.ai/api/v1/chat/completions",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(request, timeout=self.settings.navigation_timeout_ms / 1000) as response:
-            body = json.loads(response.read().decode("utf-8"))
-        return body["choices"][0]["message"]["content"]
+        if not image_paths:
+            payload["response_format"] = {"type": "json_object"}
+        last_error: Exception | None = None
+        for api_key in self.settings.api_keys_for("openrouter"):
+            try:
+                request = urllib.request.Request(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {api_key}",
+                        "HTTP-Referer": "https://humanonn.local",
+                        "X-Title": "Humanonn",
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(request, timeout=self.settings.navigation_timeout_ms / 1000) as response:
+                    body = json.loads(response.read().decode("utf-8"))
+                return body["choices"][0]["message"]["content"]
+            except Exception as exc:
+                last_error = exc
+        if last_error is None:
+            raise RuntimeError("Missing OpenRouter API key.")
+        raise last_error
 
     def _call_deepseek(
         self,
@@ -180,7 +199,6 @@ class ModelRouter:
         user_payload: dict[str, Any],
         temperature: float,
     ) -> Any:
-        api_key = self.settings.api_key_for("deepseek")
         payload = {
             "model": candidate.model,
             "messages": [
@@ -190,18 +208,26 @@ class ModelRouter:
             "temperature": temperature,
             "response_format": {"type": "json_object"},
         }
-        request = urllib.request.Request(
-            "https://api.deepseek.com/chat/completions",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(request, timeout=self.settings.navigation_timeout_ms / 1000) as response:
-            body = json.loads(response.read().decode("utf-8"))
-        return body["choices"][0]["message"]["content"]
+        last_error: Exception | None = None
+        for api_key in self.settings.api_keys_for("deepseek"):
+            request = urllib.request.Request(
+                "https://api.deepseek.com/chat/completions",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                },
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=self.settings.navigation_timeout_ms / 1000) as response:
+                    body = json.loads(response.read().decode("utf-8"))
+                return body["choices"][0]["message"]["content"]
+            except Exception as exc:
+                last_error = exc
+        if last_error is None:
+            raise RuntimeError("Missing DeepSeek API key.")
+        raise last_error
 
     def _call_jina_embeddings(self, candidate: ModelCandidate, texts: list[str]) -> list[list[float]]:
         api_key = self.settings.api_key_for("jina")
@@ -270,3 +296,20 @@ def _coerce_json(value: Any) -> dict[str, Any]:
         text = text.strip("`")
         text = text.replace("json", "", 1).strip()
     return json.loads(text or "{}")
+
+
+def _openrouter_image_parts(image_paths: list[str]) -> list[dict[str, Any]]:
+    parts: list[dict[str, Any]] = []
+    for image_path in image_paths[:4]:
+        path = Path(image_path)
+        if not path.exists():
+            continue
+        mime = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
+        data = base64.b64encode(path.read_bytes()).decode("ascii")
+        parts.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{mime};base64,{data}"},
+            }
+        )
+    return parts

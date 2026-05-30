@@ -133,7 +133,13 @@ def run_smart_scoring(
         return report
 
     ambiguity_result, ambiguity_candidate, ambiguity_attempts = _run_ambiguity(router, evidence_pack)
-    vision_result, vision_candidate, vision_attempts = _run_vision(router, snapshot, evidence_pack)
+    try:
+        vision_result, vision_candidate, vision_attempts = _run_vision(router, snapshot, evidence_pack)
+    except Exception as exc:
+        vision_result = {"signal_confirmations": [], "additional_patterns": [], "score_hint": {"direction": "neutral", "magnitude": 0}}
+        vision_candidate = None
+        vision_attempts = [{"bug_tag": "VISION_FALLBACK_SKIPPED", "status": "failed", "reason": str(exc).splitlines()[0]}]
+        smart_notes.append(f"Skipped vision scoring after provider failures: {str(exc).splitlines()[0]}")
     vision_overrides = _vision_signal_overrides(vision_result)
     embedding_result, embedding_candidate, embedding_attempts = _run_embeddings(router, evidence_pack)
     aggregator_result, aggregator_candidate, aggregator_attempts = _run_aggregator(
@@ -731,6 +737,8 @@ def _clip(value: float, minimum: float, maximum: float) -> float:
 
 
 def _candidate_payload(candidate: Any) -> dict[str, Any]:
+    if candidate is None:
+        return {"provider": None, "model": None, "bug_tag": "none"}
     return {
         "provider": candidate.provider,
         "model": candidate.model,

@@ -12,8 +12,11 @@ class Settings:
     groq_api_key: str | None
     groq_api_key_2: str | None
     gemini_api_key: str | None
+    gemini_api_key_2: str | None
     openrouter_api_key: str | None
+    openrouter_api_key_2: str | None
     deepseek_api_key: str | None
+    deepseek_api_key_2: str | None
     jina_api_key: str | None
     mixedbread_api_key: str | None
     voyage_api_key: str | None
@@ -51,6 +54,7 @@ class Settings:
     llm_adjustment_headroom_enabled: bool = True
     smart_summary_enabled: bool = True
     dynamic_findings_enabled: bool = True
+    live_site_scraping_enabled: bool = True
 
     @property
     def llm_enabled(self) -> bool:
@@ -65,12 +69,23 @@ class Settings:
     def api_keys_for(self, provider: str) -> list[str]:
         return {
             "groq": [key for key in (self.groq_api_key, self.groq_api_key_2) if key],
-            "gemini": [key for key in (self.gemini_api_key,) if key],
-            "openrouter": [key for key in (self.openrouter_api_key,) if key],
-            "deepseek": [key for key in (self.deepseek_api_key,) if key],
+            "gemini": [key for key in (self.gemini_api_key, self.gemini_api_key_2) if key],
+            "openrouter": [key for key in (self.openrouter_api_key, self.openrouter_api_key_2) if key],
+            "deepseek": [key for key in (self.deepseek_api_key, self.deepseek_api_key_2) if key],
             "jina": [key for key in (self.jina_api_key,) if key],
             "mixedbread": [key for key in (self.mixedbread_api_key,) if key],
             "voyage": [key for key in (self.voyage_api_key,) if key],
+        }.get(provider, [])
+
+    def api_key_labels_for(self, provider: str) -> list[tuple[str, str]]:
+        return {
+            "groq": [(name, value) for name, value in (("GROQ_API_KEY", self.groq_api_key), ("GROQ_API_KEY_2", self.groq_api_key_2)) if value],
+            "gemini": [(name, value) for name, value in (("GEMINI_API_KEY", self.gemini_api_key), ("GEMINI_API_KEY_2", self.gemini_api_key_2)) if value],
+            "openrouter": [(name, value) for name, value in (("OPENROUTER_API_KEY", self.openrouter_api_key), ("OPENROUTER_API_KEY_2", self.openrouter_api_key_2)) if value],
+            "deepseek": [(name, value) for name, value in (("DEEPSEEK_API_KEY", self.deepseek_api_key), ("DEEPSEEK_API_KEY_2", self.deepseek_api_key_2)) if value],
+            "jina": [("JINA_API_KEY", self.jina_api_key)] if self.jina_api_key else [],
+            "mixedbread": [("MIXEDBREAD_API_KEY", self.mixedbread_api_key)] if self.mixedbread_api_key else [],
+            "voyage": [("VOYAGE_API_KEY", self.voyage_api_key)] if self.voyage_api_key else [],
         }.get(provider, [])
 
     def primary_candidate(self, task: ModelTask) -> ModelCandidate:
@@ -95,8 +110,11 @@ def load_settings() -> Settings:
         groq_api_key=os.getenv("GROQ_API_KEY"),
         groq_api_key_2=os.getenv("GROQ_API_KEY_2"),
         gemini_api_key=os.getenv("GEMINI_API_KEY"),
+        gemini_api_key_2=os.getenv("GEMINI_API_KEY_2"),
         openrouter_api_key=os.getenv("OPENROUTER_API_KEY"),
+        openrouter_api_key_2=os.getenv("OPENROUTER_API_KEY_2"),
         deepseek_api_key=os.getenv("DEEPSEEK_API_KEY"),
+        deepseek_api_key_2=os.getenv("DEEPSEEK_API_KEY_2"),
         jina_api_key=os.getenv("JINA_API_KEY"),
         mixedbread_api_key=os.getenv("MIXEDBREAD_API_KEY"),
         voyage_api_key=os.getenv("VOYAGE_API_KEY"),
@@ -134,6 +152,7 @@ def load_settings() -> Settings:
         llm_adjustment_headroom_enabled=os.getenv("HUMANONN_LLM_ADJUSTMENT_HEADROOM_ENABLED", "true").lower() != "false",
         smart_summary_enabled=os.getenv("HUMANONN_SMART_SUMMARY", "true").lower() != "false",
         dynamic_findings_enabled=os.getenv("HUMANONN_DYNAMIC_FINDINGS", "true").lower() != "false",
+        live_site_scraping_enabled=os.getenv("HUMANONN_LIVE_SITE_SCRAPING", "true").lower() != "false",
     )
 
 

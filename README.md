@@ -40,6 +40,8 @@ Save JSON:
 python -m humanonn scan https://example.com --json reports/example.json
 ```
 
+Source-code scoring is available for public frontend GitHub repos only. Use `--repo-url` for Next.js, React, or Tailwind projects; Humanonn scans frontend files only and folds that normalized source score into the final 100-point score alongside the live site scan.
+
 ## Project Stages
 
 See [docs/stages.md](docs/stages.md).

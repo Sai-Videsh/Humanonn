@@ -13,6 +13,7 @@ def format_console_report(report: AuditReport, show_all: bool = False) -> str:
         f"URL: {report.url}",
         f"Title: {report.title or '(untitled)'}",
         f"Vibe Score: {report.score.vibe_score}/100",
+        f"Source Code Score: {report.score.source_code_score}/100",
         f"Humanness Score: {report.score.humanness_score}/100",
         f"Base Score: {report.score.base_score}",
         f"Cluster Bonus: {report.score.cluster_bonus}",
@@ -20,6 +21,14 @@ def format_console_report(report: AuditReport, show_all: bool = False) -> str:
         f"Flagged Signals: {len(flagged)}/{len(report.findings)}",
         f"Screenshot: {report.screenshot_path or '(not captured)'}",
     ]
+    if report.score.score_mode == "source_only":
+        lines.insert(6, "Rendered Vibe Score: —/100")
+        lines.insert(7, "Source-only mode: live site scraping is disabled; score is driven by source-code findings.")
+    else:
+        lines.insert(
+            6,
+            f"Rendered Vibe Score: {report.score.rendered_vibe_score if report.score.rendered_vibe_score is not None else report.score.vibe_score}/100",
+        )
     if report.scan_metadata:
         lines.extend(
             [
@@ -51,6 +60,15 @@ def format_console_report(report: AuditReport, show_all: bool = False) -> str:
         )
     if report.agent_notes:
         lines.extend(["", "Agent Notes:", *[f"  - {note}" for note in report.agent_notes]])
+    if report.source_code:
+        lines.extend(["", "Source Code Findings:"])
+        for item in report.source_code.get("findings", []):
+            if item.get("flagged"):
+                lines.append(
+                    f"  [FLAGGED] T{item.get('tier', '?')} {item.get('bucket', '?')} +{item.get('points', 0)} "
+                    f"{item.get('name', item.get('id', 'source finding'))}"
+                )
+                lines.append(f"    Reason: {item.get('reason', '')}")
     if report.smart_summary:
         lines.extend(["", "Smart Summary:", f"  {report.smart_summary}"])
     if report.dynamic_findings:

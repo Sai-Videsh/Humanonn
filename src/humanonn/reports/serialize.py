@@ -18,5 +18,6 @@ def report_to_dict(report: AuditReport) -> dict[str, Any]:
         "archetype_label": report.archetype_label,
         "dynamic_findings": report.dynamic_findings,
         "llm_evidence": report.llm_evidence,
+        "source_code": report.source_code,
         "findings": [asdict(finding) for finding in report.findings],
     }

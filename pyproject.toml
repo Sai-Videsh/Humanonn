@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 humanonn = "humanonn.cli:main"
+humanonn-check-models = "humanonn.model_checker:main"
 
 [build-system]
 requires = ["setuptools>=68"]

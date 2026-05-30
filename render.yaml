@@ -5,3 +5,8 @@ services:
     autoDeploy: true
     healthCheckPath: /
     plan: starter
+    envVars:
+      - key: HUMANONN_PRODUCTION
+        value: "true"
+      - key: HUMANONN_PROMPT_PATH
+        value: /app/prompts/agent_system.md

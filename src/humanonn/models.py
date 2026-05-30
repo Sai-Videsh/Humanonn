@@ -43,6 +43,8 @@ class ScoreSummary:
     tier_counts: dict[int, int]
     score_mode: str = "deterministic"
     llm_adjustment: float = 0.0
+    rendered_vibe_score: int | None = None
+    source_code_score: int = 0
 
 
 @dataclass
@@ -76,3 +78,4 @@ class AuditReport:
     archetype_label: str | None = None
     dynamic_findings: list[dict[str, Any]] = field(default_factory=list)
     llm_evidence: dict[str, Any] = field(default_factory=dict)
+    source_code: dict[str, Any] = field(default_factory=dict)
