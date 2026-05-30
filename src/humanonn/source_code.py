@@ -8,23 +8,30 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from humanonn.models import AuditReport, ScoreSummary, SignalBucket, SignalFinding, SignalTier
-from humanonn.scoring import clamp, score_findings
+from humanonn.scoring import clamp, get_category, score_findings, MAX_RAW_SCORE
 
 
 SOURCE_RULE_POINTS = {
-    "tailwind_default_purple_gradient": 8,
-    "rounded_full_tailwind_buttons": 8,
-    "systemic_backdrop_blur": 8,
-    "missing_tailwind_design_tokens": 5,
-    "default_inter_or_font_sans": 5,
-    "stock_shadcn_imports_unmodified": 6,
+    # Tier 1 origin: 10 × 1.5 × 1.4 = 21
+    "tailwind_default_purple_gradient": 21,
+    "rounded_full_tailwind_buttons": 21,
+    "systemic_backdrop_blur": 21,
+
+    # Tier 2 origin: 6 × 1.5 × 1.4 = 13
+    "default_inter_or_font_sans": 13,
+    "stock_shadcn_imports_unmodified": 13,
+    "missing_tailwind_design_tokens": 13,
+
+    # Tier 3 polish: 3 × 1.0 × 1.4 = 4
     "transition_all_default": 4,
     "outline_none_without_focus_replacement": 4,
     "no_reduced_motion_source": 4,
-    "production_placeholders": 4,
     "magic_zindex_source": 4,
-    "unoptimized_images_source": 4,
     "uniform_icon_size_source": 4,
+
+    # Tier 4 polish: 2 × 1.0 × 1.4 = 3
+    "production_placeholders": 3,
+    "unoptimized_images_source": 3,
 }
 SOURCE_SCORE_CAP = sum(SOURCE_RULE_POINTS.values())
 SOURCE_DOM_SIGNAL_MAP = {
@@ -56,6 +63,7 @@ class SourceFinding:
     weight: float
     flagged: bool
     points: int
+    confidence: float
     reason: str
     evidence: dict[str, Any]
 
@@ -98,23 +106,40 @@ def apply_source_code_score(report: AuditReport, repo_url: str | None) -> AuditR
             "Boosted DOM confidence to 1.0 from source-code agreement: "
             f"{', '.join(item['dom_signal_id'] for item in boosted_signals)}."
         )
-
-    source_score = int(source_report["source_code_score"])
+    # source_raw_score is the weighted sum (points * confidence) of flagged source rules
+    source_score = float(source_report["source_code_score"])
     normalized_source_score = _normalize_source_score(source_score)
     source_report["normalized_source_code_score"] = normalized_source_score
     source_report["raw_source_code_score"] = source_score
     rendered_vibe_score = report.score.vibe_score
-    if report.score.score_mode == "source_only":
-        final_vibe_score = normalized_source_score
+
+    # compute live_raw_score from score summary (base_score + cluster_bonus)
+    live_raw_score = float(report.score.base_score) + float(report.score.cluster_bonus)
+
+    source_tier_counts = source_report.get("tier_counts") if isinstance(source_report.get("tier_counts"), dict) else {}
+
+    # Unified raw pool merge
+    combined_raw = live_raw_score + source_score
+    MAX_COMBINED = MAX_RAW_SCORE + SOURCE_SCORE_CAP
+    if MAX_COMBINED <= 0:
+        final_vibe_score = 0
     else:
-        final_vibe_score = clamp(0, 100, round((rendered_vibe_score + normalized_source_score) / 2))
+        final_vibe_score = round((combined_raw / MAX_COMBINED) * 100)
+        final_vibe_score = max(0, min(100, final_vibe_score))
+
+    # Keep trace fields as before
     report.score.rendered_vibe_score = rendered_vibe_score
     report.score.source_code_score = normalized_source_score
     report.score.vibe_score = final_vibe_score
     report.score.humanness_score = 100 - final_vibe_score
+    report.score.category = get_category(
+        final_score=final_vibe_score,
+        live_tier_counts=report.score.tier_counts,
+        source_tier_counts=source_tier_counts,
+    )
     report.source_code = source_report
     scan_log.append(
-        f"Added normalized source code score {normalized_source_score}/100 (raw {source_score}/{SOURCE_SCORE_CAP}); "
+        f"Added normalized source code score {normalized_source_score}/100 (raw {round(source_score,2)}/{SOURCE_SCORE_CAP}); "
         f"rendered vibe score {rendered_vibe_score}, final vibe score {final_vibe_score}."
     )
     source_report["scan_log"] = scan_log
@@ -185,8 +210,9 @@ def _boost_dom_confidence_from_source(findings: list[SignalFinding], source_repo
 
 def scan_public_github_repo(repo_url: str) -> dict[str, Any]:
     owner, repo = _parse_github_repo(repo_url)
-    scan_log = [f"Starting source-code scan for {owner}/{repo}."]
-    tree = _fetch_json(f"https://api.github.com/repos/{owner}/{repo}/git/trees/main?recursive=1")
+    default_branch = _fetch_default_branch(owner, repo)
+    scan_log = [f"Starting source-code scan for {owner}/{repo} on branch {default_branch}."]
+    tree = _fetch_json(f"https://api.github.com/repos/{owner}/{repo}/git/trees/{default_branch}?recursive=1")
     entries = tree.get("tree", [])
     paths = [
         item["path"]
@@ -194,26 +220,29 @@ def scan_public_github_repo(repo_url: str) -> dict[str, Any]:
         if item.get("type") == "blob" and _should_fetch_path(item.get("path", ""))
     ]
     files = [
-        SourceFile(path=path, content=_fetch_text(f"https://raw.githubusercontent.com/{owner}/{repo}/main/{path}"))
+        SourceFile(path=path, content=_fetch_text(f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{path}"))
         for path in paths
     ]
     scan_log.append(f"Fetched {len(files)} source files for scanning.")
     findings = _evaluate_source_rules(files)
-    source_score = min(SOURCE_SCORE_CAP, sum(finding.points for finding in findings if finding.flagged))
+    # source_raw_score is weighted by confidence
+    source_score = sum(finding.points * float(finding.confidence) for finding in findings if finding.flagged)
+    # do not cap source_score here; normalization uses SOURCE_SCORE_CAP
     for finding in findings:
         state = "FLAGGED" if finding.flagged else "clear"
         scan_log.append(f"[{state}] {finding.id} - {finding.reason}")
-    scan_log.append(f"Computed raw source code score {source_score}/{SOURCE_SCORE_CAP}.")
+    scan_log.append(f"Computed raw source code score {round(source_score,2)}/{SOURCE_SCORE_CAP}.")
     return {
         "repo_url": repo_url,
         "owner": owner,
         "repo": repo,
-        "branch": "main",
+        "branch": default_branch,
         "files_scanned": len(files),
         "bytes_scanned": sum(len(file.content.encode("utf-8", errors="ignore")) for file in files),
         "source_code_score": source_score,
         "normalized_source_code_score": _normalize_source_score(source_score),
         "score_cap": SOURCE_SCORE_CAP,
+        "tier_counts": _source_tier_counts(findings),
         "findings": [asdict(finding) for finding in findings],
         "scan_log": scan_log,
     }
@@ -247,6 +276,55 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
     unoptimized_image_matches = _unoptimized_image_matches(jsx_files, next_config_files)
     uniform_icon_matches = _uniform_icon_size_matches(code_files)
 
+    # helper to compute confidence from matches list length
+    def conf_from_file_count(matches_list: list[dict[str, Any]]) -> float:
+        n = len(matches_list)
+        if n >= 3:
+            return 1.0
+        if n == 2:
+            return 0.8
+        if n == 1:
+            return 0.6
+        return 0.0
+
+    # compute confidences per rule using heuristics described
+    gradient_conf = conf_from_file_count(gradient_matches)
+    rounded_conf = conf_from_file_count(rounded_matches)
+    blur_file_count = len({m["path"] for m in blur_matches})
+    if blur_file_count >= 3:
+        blur_conf = 1.0
+    elif blur_file_count == 2:
+        blur_conf = 0.9
+    elif blur_file_count == 1:
+        blur_conf = 0.6
+    else:
+        blur_conf = 0.0
+
+    transition_conf = conf_from_file_count(transition_matches)
+    outline_conf = conf_from_file_count(outline_matches)
+    reduced_motion_conf = 0.0
+    if bool(code_files) and not reduced_motion_present:
+        reduced_motion_conf = 0.8 if len(code_files) >= 3 else 0.6
+
+    placeholder_conf = conf_from_file_count(placeholder_matches)
+    magic_zindex_conf = conf_from_file_count(magic_zindex_matches)
+
+    # uniform_icon_matches may include occurrence info
+    if uniform_icon_matches and isinstance(uniform_icon_matches, list) and uniform_icon_matches:
+        first = uniform_icon_matches[0]
+        occ = first.get("occurrences", 0)
+        if occ >= 4:
+            uniform_icon_conf = 1.0
+        else:
+            uniform_icon_conf = 0.7
+    else:
+        uniform_icon_conf = 0.0
+
+    shadcn_conf = 0.7 if shadcn_matches else 0.0
+    missing_tailwind_conf = 0.8 if _uses_tailwind_classes(all_text) and not _has_custom_tailwind_colors(tailwind_files) else 0.0
+    default_font_conf = 0.8 if _uses_default_font_stack(code_files, tailwind_files) else 0.0
+    unoptimized_images_conf = 0.9 if unoptimized_image_matches else 0.0
+
     return [
         _source_finding(
             "tailwind_default_purple_gradient",
@@ -255,6 +333,7 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             "origin",
             SOURCE_RULE_POINTS["tailwind_default_purple_gradient"],
             bool(gradient_matches),
+            gradient_conf,
             "Source uses default Tailwind purple/violet/pink gradient classes."
             if gradient_matches
             else "No default Tailwind purple/pink gradient classes found in fetched source.",
@@ -267,6 +346,7 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             "origin",
             SOURCE_RULE_POINTS["rounded_full_tailwind_buttons"],
             bool(rounded_matches),
+            rounded_conf,
             "JSX source uses rounded-full, confirming pill radius came from Tailwind classes."
             if rounded_matches
             else "No rounded-full class found in JSX/TSX source.",
@@ -279,6 +359,7 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             "origin",
             SOURCE_RULE_POINTS["systemic_backdrop_blur"],
             len({match["path"] for match in blur_matches}) >= 2,
+            blur_conf,
             "backdrop-blur appears in multiple files, suggesting systemic glassmorphism."
             if len({match["path"] for match in blur_matches}) >= 2
             else "backdrop-blur was not found across multiple unrelated files.",
@@ -291,6 +372,7 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             "origin",
             SOURCE_RULE_POINTS["missing_tailwind_design_tokens"],
             _uses_tailwind_classes(all_text) and not _has_custom_tailwind_colors(tailwind_files),
+            missing_tailwind_conf,
             "Tailwind classes are used, but no custom color tokens were found in tailwind config."
             if _uses_tailwind_classes(all_text) and not _has_custom_tailwind_colors(tailwind_files)
             else "Custom Tailwind color tokens appear to be present or Tailwind usage was not confirmed.",
@@ -303,6 +385,7 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             "origin",
             SOURCE_RULE_POINTS["default_inter_or_font_sans"],
             _uses_default_font_stack(code_files, tailwind_files),
+            default_font_conf,
             "Source uses font-sans, Inter, or Geist without evidence of a custom font setup."
             if _uses_default_font_stack(code_files, tailwind_files)
             else "Default Inter/Geist/font-sans typography was not confirmed.",
@@ -315,6 +398,7 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             "origin",
             SOURCE_RULE_POINTS["stock_shadcn_imports_unmodified"],
             bool(shadcn_matches),
+            shadcn_conf,
             "Source imports shadcn/ui primitives and local component files look near-default."
             if shadcn_matches
             else "No near-default shadcn/ui primitive usage was confirmed.",
@@ -327,6 +411,7 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             "polish",
             SOURCE_RULE_POINTS["transition_all_default"],
             bool(transition_matches),
+            transition_conf,
             "Source uses transition-all/duration-300 or transition: all 0.3s ease."
             if transition_matches
             else "No default transition-all pattern found.",
@@ -339,6 +424,7 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             "polish",
             SOURCE_RULE_POINTS["outline_none_without_focus_replacement"],
             bool(outline_matches),
+            outline_conf,
             "Source removes outlines without nearby ring/focus-visible replacement classes."
             if outline_matches
             else "No unsafe outline-none usage confirmed.",
@@ -351,6 +437,7 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             "polish",
             SOURCE_RULE_POINTS["no_reduced_motion_source"],
             bool(code_files) and not reduced_motion_present,
+            reduced_motion_conf,
             "No prefers-reduced-motion media query or equivalent source handling was found."
             if bool(code_files) and not reduced_motion_present
             else "prefers-reduced-motion handling was found or no source files were scanned.",
@@ -363,6 +450,7 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             "polish",
             SOURCE_RULE_POINTS["production_placeholders"],
             bool(placeholder_matches),
+            placeholder_conf,
             "Source contains empty onClick handlers, TODO markers, or console.log calls."
             if placeholder_matches
             else "No obvious production placeholders or debug logs found.",
@@ -375,6 +463,7 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             "origin",
             SOURCE_RULE_POINTS["magic_zindex_source"],
             bool(magic_zindex_matches),
+            magic_zindex_conf,
             "Source uses arbitrary z-index values such as z-[999] or z-index: 999."
             if magic_zindex_matches
             else "No magic z-index values found in source.",
@@ -387,6 +476,7 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             "polish",
             SOURCE_RULE_POINTS["unoptimized_images_source"],
             bool(unoptimized_image_matches),
+            unoptimized_images_conf,
             "Next.js source uses raw <img> tags instead of next/image."
             if unoptimized_image_matches
             else "No unoptimized raw <img> usage confirmed in a Next.js frontend.",
@@ -399,6 +489,7 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             "origin",
             SOURCE_RULE_POINTS["uniform_icon_size_source"],
             bool(uniform_icon_matches),
+            uniform_icon_conf,
             "Lucide icon usages all resolve to the same size value across the scanned source."
             if uniform_icon_matches
             else "Icon sizing varies or could not be confirmed from the scanned source.",
@@ -417,13 +508,19 @@ def _parse_github_repo(repo_url: str) -> tuple[str, str]:
     return parts[0], parts[1].removesuffix(".git")
 
 
+def _fetch_default_branch(owner: str, repo: str) -> str:
+    repo_info = _fetch_json(f"https://api.github.com/repos/{owner}/{repo}")
+    default_branch = str(repo_info.get("default_branch") or "main").strip()
+    return default_branch or "main"
+
+
 def _should_fetch_path(path: str) -> bool:
     normalized = path.replace("\\", "/")
     if _is_tailwind_config(normalized) or _is_next_config(normalized):
         return True
     return (
         normalized.startswith(("src/", "app/", "components/", "styles/"))
-        or normalized.endswith((".css", ".tsx", ".ts", ".jsx", ".js", ".mjs"))
+        or normalized.endswith((".css", ".tsx", ".ts", ".jsx", ".js", ".mjs", ".html", ".htm", ".mdx", ".vue", ".svelte", ".astro"))
     )
 
 
@@ -534,6 +631,7 @@ def _source_finding(
     bucket: SignalBucket,
     points: int,
     flagged: bool,
+    confidence: float,
     reason: str,
     evidence: dict[str, Any],
 ) -> SourceFinding:
@@ -545,9 +643,18 @@ def _source_finding(
         weight=float(points),
         flagged=flagged,
         points=points if flagged else 0,
+        confidence=confidence,
         reason=reason,
         evidence=evidence,
     )
+
+
+def _source_tier_counts(findings: list[SourceFinding]) -> dict[int, int]:
+    counts = {1: 0, 2: 0, 3: 0, 4: 0}
+    for finding in findings:
+        if finding.flagged:
+            counts[int(finding.tier)] += 1
+    return counts
 
 
 def _stock_shadcn_matches(files: list[SourceFile], code_files: list[SourceFile]) -> list[dict[str, Any]]:

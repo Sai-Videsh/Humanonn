@@ -41,6 +41,7 @@ class ScoreSummary:
     base_score: float
     cluster_bonus: int
     tier_counts: dict[int, int]
+    category: str = "Human Built"
     score_mode: str = "deterministic"
     llm_adjustment: float = 0.0
     rendered_vibe_score: int | None = None

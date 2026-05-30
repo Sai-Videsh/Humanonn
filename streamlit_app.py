@@ -208,9 +208,16 @@ def _source_code_log_lines(report_data: dict | None) -> list[str]:
     if not report_data:
         return []
     source_code = report_data.get("source_code") if isinstance(report_data.get("source_code"), dict) else {}
+    score_block = report_data.get("score") if isinstance(report_data.get("score"), dict) else {}
     logs = source_code.get("scan_log") if isinstance(source_code.get("scan_log"), list) else []
     if logs:
-        return [str(line) for line in logs]
+        rendered = score_block.get("rendered_vibe_score")
+        source_score = source_code.get("normalized_source_code_score", source_code.get("source_code_score"))
+        return [
+            *( [f"Source code score: {source_score}/100"] if source_score is not None else [] ),
+            *( [f"Live site score: {rendered}/100"] if rendered is not None else [] ),
+            *[str(line) for line in logs],
+        ]
     findings = source_code.get("findings") or []
     fallback: list[str] = []
     if source_code:
@@ -223,8 +230,23 @@ def _source_code_log_lines(report_data: dict | None) -> list[str]:
             state = "FLAGGED" if item.get("flagged") else "clear"
             fallback.append(f"[{state}] {item.get('id', 'unknown')} - {item.get('reason', '')}")
         if source_code.get("source_code_score") is not None:
+            fallback.append(f"Source code score: {source_code.get('normalized_source_code_score', source_code.get('source_code_score', 0))}/100")
             fallback.append(f"Computed raw source code score {source_code.get('source_code_score', 0)}/{source_code.get('score_cap', 25)}.")
     return fallback
+
+
+def _live_site_log_lines(report_data: dict | None) -> list[str]:
+    if not report_data:
+        return []
+    score_block = report_data.get("score") if isinstance(report_data.get("score"), dict) else {}
+    vibe = report_data.get("vibe_score") or score_block.get("vibe_score") or report_data.get("final_score")
+    rendered = score_block.get("rendered_vibe_score")
+    lines: list[str] = []
+    if rendered is not None:
+        lines.append(f"Live site score: {rendered}/100")
+    if vibe is not None:
+        lines.append(f"Merged vibe score: {vibe}/100")
+    return lines
 
 
 def _render_scan_controls() -> None:
@@ -268,7 +290,8 @@ with st.expander("Show live logs", expanded=False):
     live_log_box = st.empty()
     if st.session_state["live_scan_running"]:
         _drain_scan_output()
-    _render_live_logs(live_log_box, st.session_state["live_logs"], st.session_state["live_scan_running"])
+    live_logs = _live_site_log_lines(st.session_state.get("scan_report_data") or None) + st.session_state["live_logs"]
+    _render_live_logs(live_log_box, live_logs, st.session_state["live_scan_running"])
 
 with st.expander("Show source code scan", expanded=False):
     source_log_box = st.empty()
@@ -377,6 +400,7 @@ with right_col:
         vibe = report_data.get("vibe_score") or score_block.get("vibe_score") or report_data.get("final_score")
         rendered_vibe = score_block.get("rendered_vibe_score")
         source_code_score = score_block.get("source_code_score", 0)
+        category = score_block.get("category") or report_data.get("category") or "Human Built"
         humanness = report_data.get("humanness_score") or score_block.get("humanness_score")
         base = report_data.get("base_score") or score_block.get("base_score") or report_data.get("score_base")
         cluster = report_data.get("cluster_bonus") or score_block.get("cluster_bonus") or report_data.get("cluster")
@@ -389,16 +413,15 @@ with right_col:
 
         st.markdown(f"**URL:** {report_url}")
         st.markdown(f"**Title:** {report_title}")
-        st.markdown(f"**Vibe Score:** {vibe if vibe is not None else '—'}/100")
+        st.markdown(f"### {category}")
+        st.markdown(f"**Merged Vibe Score:** {vibe if vibe is not None else '—'}/100")
         if score_mode == "source_only":
-            st.markdown("**Rendered Vibe Score:** —/100")
+            st.markdown("**Live Site Score:** —/100")
             st.markdown("**Source-only mode:** live site scraping is disabled; score is driven by source-code findings.")
             st.markdown(f"**Source Code Score:** +{source_code_score}")
-            st.markdown(f"**Final Score:** {vibe if vibe is not None else '—'}/100")
         elif rendered_vibe is not None or source_code_score:
-            st.markdown(f"**Rendered Vibe Score:** {rendered_vibe if rendered_vibe is not None else vibe}/100")
+            st.markdown(f"**Live Site Score:** {rendered_vibe if rendered_vibe is not None else vibe}/100")
             st.markdown(f"**Source Code Score:** +{source_code_score}")
-            st.markdown(f"**Final Score:** {vibe if vibe is not None else '—'}/100")
         st.markdown(f"**Humanness Score:** {humanness if humanness is not None else '—'}/100")
         st.markdown(f"**Base Score:** {base if base is not None else '—'}")
         st.markdown(f"**Cluster Bonus:** {cluster if cluster is not None else '—'}")

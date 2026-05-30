@@ -15,18 +15,41 @@ def normalise_raw_score(raw_score: float) -> int:
     return clamp(0, 100, round((raw_score / MAX_RAW_SCORE) * 100))
 
 
-def get_category(vibe_score: int) -> str:
-    if vibe_score >= 80:
+def get_category(
+    final_score: int,
+    live_tier_counts: dict[int, int] | None = None,
+    source_tier_counts: dict[int, int] | None = None,
+) -> str:
+    live_tier_counts = live_tier_counts or {}
+    source_tier_counts = source_tier_counts or {}
+    live_pressure = _tier_pressure(live_tier_counts)
+    source_pressure = _tier_pressure(source_tier_counts)
+
+    live_strong = live_pressure >= 12
+    live_moderate = 7 <= live_pressure <= 11
+    live_weak = 3 <= live_pressure <= 6 # this var not used yet
+    source_strong = source_pressure >= 12
+    source_moderate = 7 <= source_pressure <= 11
+    source_weak = 3 <= source_pressure <= 6
+
+    if 70 <= final_score <= 100 or (62 <= final_score <= 69 and source_strong and live_strong):
         return "Fully Vibe Coded"
-    if vibe_score >= 65:
-        return "Mostly Vibe-Coded"
-    if vibe_score >= 50:
-        return "Vibe-Coded With Human Polish"
-    if vibe_score >= 35:
-        return "AI-Assisted / Touched Up"
-    if vibe_score >= 16:
-        return "Human-Led With Minor AI Defaults"
+    if 55 <= final_score <= 69 or (48 <= final_score <= 54 and source_moderate and live_moderate):
+        return "Mostly Vibe Coded"
+    if 35 <= final_score <= 54 or (30 <= final_score <= 34 and (live_moderate or source_moderate)):
+        return "Vibe Coded With Human Polish"
+    if 18 <= final_score <= 34 or (13 <= final_score <= 17 and source_weak):
+        return "Slight Dev Effort"
     return "Human Built"
+
+
+def _tier_pressure(tier_counts: dict[int, int]) -> int:
+    return (
+        4 * int(tier_counts.get(1, 0) or 0)
+        + 3 * int(tier_counts.get(2, 0) or 0)
+        + 2 * int(tier_counts.get(3, 0) or 0)
+        + 1 * int(tier_counts.get(4, 0) or 0)
+    )
 
 
 def score_findings(
@@ -53,6 +76,7 @@ def score_findings(
     return ScoreSummary(
         vibe_score=vibe_score,
         humanness_score=100 - vibe_score,
+        category=get_category(vibe_score, tier_counts, None),
         base_score=round(base_score, 2),
         cluster_bonus=cluster_bonus,
         tier_counts=tier_counts,

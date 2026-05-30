@@ -9,6 +9,7 @@ dependencies = [
     "playwright>=1.44.0",
     "pydantic>=2.7.0",
     "streamlit>=1.36.0",
+    "watchdog>=2.1.0",
 ]
 
 [project.scripts]
