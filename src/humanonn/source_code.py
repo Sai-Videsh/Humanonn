@@ -12,6 +12,37 @@ from humanonn.scoring import clamp, get_category, score_findings, MAX_RAW_SCORE
 from humanonn.runtime import terminal_log
 
 
+MEDIA_SCAN_SKIP_BYTES = 800 * 1024 * 1024
+HARD_SCAN_SKIP_BYTES = 1500 * 1024 * 1024
+LIKELY_BINARY_OR_MEDIA_EXTENSIONS = {
+    ".7z",
+    ".avi",
+    ".bin",
+    ".dmg",
+    ".exe",
+    ".gif",
+    ".gz",
+    ".ico",
+    ".jpeg",
+    ".jpg",
+    ".mkv",
+    ".mov",
+    ".mp4",
+    ".mpeg",
+    ".mpg",
+    ".pdf",
+    ".png",
+    ".so",
+    ".tar",
+    ".ttf",
+    ".webm",
+    ".webp",
+    ".woff",
+    ".woff2",
+    ".zip",
+}
+
+
 SOURCE_RULE_POINTS = {
     # Tier 1 origin: 10 × 1.5 × 1.4 = 21
     "tailwind_default_purple_gradient": 21,
@@ -270,16 +301,19 @@ def scan_public_github_repo(repo_url: str) -> dict[str, Any]:
     _emit_source_scan_progress(f"Starting source-code scan for {owner}/{repo} on branch {default_branch}.")
     tree = _fetch_json(f"https://api.github.com/repos/{owner}/{repo}/git/trees/{default_branch}?recursive=1")
     entries = tree.get("tree", [])
-    paths = [
-        item["path"]
-        for item in entries
-        if item.get("type") == "blob" and _should_fetch_path(item.get("path", ""))
-    ]
+    file_entries, skipped_entries = _select_repo_files_for_scan(owner, repo, default_branch, entries)
+    fetched_paths = [entry["path"] for entry in file_entries]
+    fetched_structure = _format_repo_file_structure(fetched_paths)
+    scan_log.append(
+        f"Fetched repo file structure from GitHub ({len(fetched_paths)} files):\n{fetched_structure}"
+    )
     files = [
-        SourceFile(path=path, content=_fetch_text(f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{path}"))
-        for path in paths
+        SourceFile(path=entry["path"], content=_fetch_text(_raw_github_file_url(owner, repo, default_branch, entry["path"])))
+        for entry in file_entries
     ]
-    _emit_source_scan_progress(f"Fetched {len(files)} source files for scanning.")
+    _emit_source_scan_progress(
+        f"Fetched {len(files)} repo files for scanning; skipped {len(skipped_entries)} oversized binary/media blobs."
+    )
     findings = _evaluate_source_rules(files)
     # source_raw_score is weighted by confidence
     source_score = sum(finding.points * float(finding.confidence) for finding in findings if finding.flagged)
@@ -295,12 +329,16 @@ def scan_public_github_repo(repo_url: str) -> dict[str, Any]:
         "repo": repo,
         "branch": default_branch,
         "files_scanned": len(files),
+        "files_skipped": len(skipped_entries),
+        "fetched_file_paths": fetched_paths,
+        "fetched_file_structure": fetched_structure,
         "bytes_scanned": sum(len(file.content.encode("utf-8", errors="ignore")) for file in files),
         "source_code_score": source_score,
         "normalized_source_code_score": _normalize_source_score(source_score),
         "score_cap": SOURCE_SCORE_CAP,
         "tier_counts": _source_tier_counts(findings),
         "findings": [asdict(finding) for finding in findings],
+        "skipped_files": skipped_entries,
         "scan_log": scan_log,
     }
 
@@ -1110,14 +1148,114 @@ def _fetch_default_branch(owner: str, repo: str) -> str:
     return default_branch or "main"
 
 
-def _should_fetch_path(path: str) -> bool:
+def _select_repo_files_for_scan(
+    owner: str,
+    repo: str,
+    default_branch: str,
+    entries: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    file_entries: list[dict[str, Any]] = []
+    skipped_entries: list[dict[str, Any]] = []
+    for item in entries:
+        if item.get("type") != "blob":
+            continue
+        path = str(item.get("path", ""))
+        size_bytes = _entry_size_bytes(owner, repo, item)
+        if not _should_fetch_path(path, size_bytes=size_bytes):
+            skipped_entries.append(
+                {
+                    "path": path,
+                    "size_bytes": size_bytes,
+                    "reason": _skip_reason_for_path(path, size_bytes),
+                }
+            )
+            continue
+        file_entries.append(item)
+    return file_entries, skipped_entries
+
+
+def _should_fetch_path(path: str, size_bytes: int | None = None) -> bool:
     normalized = path.replace("\\", "/")
-    if _is_tailwind_config(normalized) or _is_next_config(normalized):
+    if size_bytes is None:
         return True
-    return (
-        normalized.startswith(("src/", "app/", "components/", "styles/"))
-        or normalized.endswith((".css", ".tsx", ".ts", ".jsx", ".js", ".mjs", ".html", ".htm", ".mdx", ".vue", ".svelte", ".astro"))
-    )
+    if size_bytes > HARD_SCAN_SKIP_BYTES:
+        return False
+    if size_bytes >= MEDIA_SCAN_SKIP_BYTES and _looks_like_binary_or_media_path(normalized):
+        return False
+    return True
+
+
+def _skip_reason_for_path(path: str, size_bytes: int | None) -> str:
+    normalized = path.replace("\\", "/")
+    if size_bytes is None:
+        return "size unavailable"
+    if size_bytes > HARD_SCAN_SKIP_BYTES:
+        return f"size {size_bytes} exceeds hard scan limit"
+    if size_bytes >= MEDIA_SCAN_SKIP_BYTES and _looks_like_binary_or_media_path(normalized):
+        return f"media/binary file {size_bytes} bytes exceeds practical scan threshold"
+    return "filtered out"
+
+
+def _entry_size_bytes(owner: str, repo: str, item: dict[str, Any]) -> int | None:
+    size = item.get("size")
+    if isinstance(size, int):
+        return size
+    if isinstance(size, str) and size.isdigit():
+        return int(size)
+    sha = item.get("sha")
+    if not sha:
+        return None
+    try:
+        blob = _fetch_json(f"https://api.github.com/repos/{owner}/{repo}/git/blobs/{sha}")
+    except Exception:
+        return None
+    blob_size = blob.get("size")
+    if isinstance(blob_size, int):
+        return blob_size
+    if isinstance(blob_size, str) and blob_size.isdigit():
+        return int(blob_size)
+    return None
+
+
+def _looks_like_binary_or_media_path(path: str) -> bool:
+    lowered = path.lower()
+    return any(lowered.endswith(extension) for extension in LIKELY_BINARY_OR_MEDIA_EXTENSIONS)
+
+
+def _raw_github_file_url(owner: str, repo: str, default_branch: str, path: str) -> str:
+    encoded_path = "/".join(urllib.parse.quote(part) for part in path.split("/"))
+    return f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{encoded_path}"
+
+
+def _format_repo_file_structure(paths: list[str]) -> str:
+    cleaned_paths = sorted({path.replace("\\", "/").strip("/") for path in paths if path})
+    if not cleaned_paths:
+        return "(no files fetched)"
+
+    tree: dict[str, Any] = {}
+    for path in cleaned_paths:
+        node = tree
+        parts = path.split("/")
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node.setdefault("__files__", []).append(parts[-1])
+
+    lines: list[str] = []
+
+    def walk(node: dict[str, Any], prefix: str) -> None:
+        dir_names = sorted(name for name in node.keys() if name != "__files__")
+        file_names = sorted(node.get("__files__", []))
+        entries = [("dir", name) for name in dir_names] + [("file", name) for name in file_names]
+        for index, (entry_type, name) in enumerate(entries):
+            is_last = index == len(entries) - 1
+            branch = "`-- " if is_last else "|-- "
+            suffix = "/" if entry_type == "dir" else ""
+            lines.append(f"{prefix}{branch}{name}{suffix}")
+            if entry_type == "dir":
+                walk(node[name], prefix + ("    " if is_last else "|   "))
+
+    walk(tree, "")
+    return "\n".join(lines)
 
 
 def _is_tailwind_config(path: str) -> bool:
