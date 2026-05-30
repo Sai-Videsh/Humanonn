@@ -5,8 +5,12 @@ import re
 import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
+from humanonn.config import Settings, load_settings
+from humanonn.llm_clients import ModelRouter
+from humanonn.model_routing import route_for
 from humanonn.models import AuditReport, ScoreSummary, SignalBucket, SignalFinding, SignalTier
 from humanonn.scoring import clamp, get_category, score_findings, MAX_RAW_SCORE
 from humanonn.runtime import terminal_log
@@ -123,6 +127,9 @@ SOURCE_DOM_SIGNAL_MAP = {
     "missing_useeffect_deps": ["missing_useeffect_deps"],
 }
 
+ATS_REVIEW_CONFIDENCE_MIN = 0.3
+ATS_REVIEW_CONFIDENCE_MAX = 0.8
+
 
 _SOURCE_SCAN_PROGRESS: dict[str, Any] = {
     "enabled": False,
@@ -152,9 +159,15 @@ class SourceFinding:
     evidence: dict[str, Any]
 
 
-def apply_source_code_score(report: AuditReport, repo_url: str | None) -> AuditReport:
+def apply_source_code_score(
+    report: AuditReport,
+    repo_url: str | None,
+    settings: Settings | None = None,
+) -> AuditReport:
     if not repo_url:
         return report
+
+    settings = settings or load_settings()
 
     try:
         source_report = scan_public_github_repo(repo_url)
@@ -167,6 +180,10 @@ def apply_source_code_score(report: AuditReport, repo_url: str | None) -> AuditR
         }
         report.agent_notes.append(f"Source code scan failed for {repo_url}: {str(exc).splitlines()[0]}")
         return report
+
+    ats_notes = _apply_source_ats_review(source_report, settings)
+    if ats_notes:
+        source_report.setdefault("scan_log", []).extend(ats_notes)
 
     boosted_signals = _boost_dom_confidence_from_source(report.findings, source_report)
     if boosted_signals:
@@ -190,8 +207,15 @@ def apply_source_code_score(report: AuditReport, repo_url: str | None) -> AuditR
             "Boosted DOM confidence to 1.0 from source-code agreement: "
             f"{', '.join(item['dom_signal_id'] for item in boosted_signals)}."
         )
-    # source_raw_score is the weighted sum (points * confidence) of flagged source rules
-    source_score = float(source_report["source_code_score"])
+    source_findings = source_report.get("findings", []) if isinstance(source_report.get("findings"), list) else []
+    source_score = float(
+        sum(
+            float(item.get("points", 0)) * float(item.get("confidence", 0.0))
+            for item in source_findings
+            if isinstance(item, dict) and item.get("flagged")
+        )
+    )
+    source_report["source_code_score"] = source_score
     normalized_source_score = _normalize_source_score(source_score)
     source_report["normalized_source_code_score"] = normalized_source_score
     source_report["raw_source_code_score"] = source_score
@@ -234,7 +258,99 @@ def apply_source_code_score(report: AuditReport, repo_url: str | None) -> AuditR
     return report
 
 
-def build_source_only_report(url: str, repo_url: str | None) -> AuditReport:
+def _apply_source_ats_review(source_report: dict[str, Any], settings: Settings) -> list[str]:
+    if settings.force_no_llm:
+        return []
+
+    ats_candidates = [candidate for candidate in route_for("ats_review") if settings.api_keys_for(candidate.provider)]
+    if not ats_candidates:
+        return []
+
+    findings = source_report.get("findings", []) if isinstance(source_report.get("findings"), list) else []
+    review_candidates = [
+        item
+        for item in findings
+        if isinstance(item, dict)
+        and item.get("flagged")
+        and ATS_REVIEW_CONFIDENCE_MIN <= float(item.get("confidence", 0.0)) <= ATS_REVIEW_CONFIDENCE_MAX
+    ]
+    if not review_candidates:
+        return []
+
+    prompt = (Path(__file__).resolve().parents[2] / "prompts" / "ats_review.md").read_text(encoding="utf-8")
+    payload = {
+        "scan_domain": "source_code",
+        "repo_url": source_report.get("repo_url"),
+        "owner": source_report.get("owner"),
+        "repo": source_report.get("repo"),
+        "branch": source_report.get("branch"),
+        "files_scanned": source_report.get("files_scanned", 0),
+        "files_skipped": source_report.get("files_skipped", 0),
+        "fetched_file_structure": source_report.get("fetched_file_structure"),
+        "scan_log": source_report.get("scan_log", [])[:30],
+        "requested_signals": review_candidates,
+    }
+    router = ModelRouter(settings)
+
+    try:
+        result, candidate, attempts = router.call_json("ats_review", prompt, payload, temperature=0.05)
+    except Exception as exc:
+        note = f"ATS source review skipped after provider failures: {str(exc).splitlines()[0]}"
+        source_report.setdefault("scan_log", []).append(note)
+        return [note]
+
+    reviews = result.get("signal_reviews", []) if isinstance(result, dict) else []
+    if not isinstance(reviews, list) or not reviews:
+        note = f"ATS source review returned no signal reviews via {candidate.bug_tag}."
+        source_report.setdefault("scan_log", []).append(note)
+        source_report["ats_review"] = {
+            "candidate": _ats_candidate_payload(candidate),
+            "attempts": attempts,
+            "result": result,
+        }
+        return [note]
+
+    findings_by_id = {str(item.get("id")): item for item in findings if isinstance(item, dict)}
+    applied: list[str] = []
+    for review in reviews:
+        if not isinstance(review, dict):
+            continue
+        signal_id = str(review.get("id", "")).strip()
+        current = findings_by_id.get(signal_id)
+        if not signal_id or current is None:
+            continue
+        new_flagged = bool(review.get("flagged", current.get("flagged", False)))
+        new_confidence = float(review.get("confidence", current.get("confidence", 0.0)))
+        new_confidence = max(0.0, min(1.0, new_confidence))
+        updated = {
+            **current,
+            "flagged": new_flagged,
+            "confidence": new_confidence,
+            "reason": str(review.get("reason", current.get("reason", ""))),
+            "fix": str(review.get("fix", current.get("fix", ""))),
+            "points": int(current.get("points", 0)) if new_flagged else 0,
+            "evidence": {
+                **(current.get("evidence", {}) if isinstance(current.get("evidence"), dict) else {}),
+                "ats_review": review,
+            },
+        }
+        findings_by_id[signal_id] = updated
+        applied.append(signal_id)
+
+    source_report["findings"] = list(findings_by_id.values())
+    source_report["ats_review"] = {
+        "candidate": _ats_candidate_payload(candidate),
+        "attempts": attempts,
+        "result": result,
+        "applied_signal_ids": applied,
+    }
+    source_report.setdefault("scan_log", []).append(
+        f"Applied ATS source review via {candidate.bug_tag} to {len(applied)} borderline findings."
+    )
+    return [f"Applied ATS source review via {candidate.bug_tag} to {len(applied)} borderline findings."]
+
+
+def build_source_only_report(url: str, repo_url: str | None, settings: Settings | None = None) -> AuditReport:
     report = AuditReport(
         url=url,
         title="Source-only scan",
@@ -255,7 +371,7 @@ def build_source_only_report(url: str, repo_url: str | None) -> AuditReport:
         agent_notes=["Live site scraping disabled by HUMANONN_LIVE_SITE_SCRAPING=false; using source-code scoring only."],
     )
     if repo_url:
-        return apply_source_code_score(report, repo_url)
+        return apply_source_code_score(report, repo_url, settings=settings)
     report.agent_notes.append("No GitHub repo URL was provided, so source-code scoring could not run.")
     return report
 
@@ -1441,6 +1557,18 @@ def _source_tier_counts(findings: list[SourceFinding]) -> dict[int, int]:
         if finding.flagged:
             counts[int(finding.tier)] += 1
     return counts
+
+
+def _ats_candidate_payload(candidate: Any) -> dict[str, Any]:
+    if candidate is None:
+        return {}
+    return {
+        "task": getattr(candidate, "task", None),
+        "provider": getattr(candidate, "provider", None),
+        "model": getattr(candidate, "model", None),
+        "role": getattr(candidate, "role", None),
+        "bug_tag": getattr(candidate, "bug_tag", None),
+    }
 
 
 def _stock_shadcn_matches(files: list[SourceFile], code_files: list[SourceFile]) -> list[dict[str, Any]]:

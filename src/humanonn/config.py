@@ -17,6 +17,8 @@ class Settings:
     openrouter_api_key_2: str | None
     deepseek_api_key: str | None
     deepseek_api_key_2: str | None
+    huggingface_api_key: str | None
+    huggingface_api_key_2: str | None
     jina_api_key: str | None
     mixedbread_api_key: str | None
     voyage_api_key: str | None
@@ -56,6 +58,16 @@ class Settings:
     smart_summary_enabled: bool = True
     dynamic_findings_enabled: bool = True
     live_site_scraping_enabled: bool = True
+    # Smart scoring / selective sampling controls
+    smart_conf_low: float = 0.35
+    smart_conf_high: float = 0.65
+    smart_center_low: float = 0.45
+    smart_center_high: float = 0.55
+    smart_top_k: int = 10
+    smart_max_per_repo: int = 20
+    smart_global_cap: int = 100
+    smart_sample_outside_pct: float = 0.05
+    smart_cache_ttl_days: int = 7
 
     @property
     def llm_enabled(self) -> bool:
@@ -73,6 +85,7 @@ class Settings:
             "gemini": [key for key in (self.gemini_api_key, self.gemini_api_key_2) if key],
             "openrouter": [key for key in (self.openrouter_api_key, self.openrouter_api_key_2) if key],
             "deepseek": [key for key in (self.deepseek_api_key, self.deepseek_api_key_2) if key],
+            "huggingface": [key for key in (self.huggingface_api_key, self.huggingface_api_key_2) if key],
             "jina": [key for key in (self.jina_api_key,) if key],
             "mixedbread": [key for key in (self.mixedbread_api_key,) if key],
             "voyage": [key for key in (self.voyage_api_key,) if key],
@@ -84,6 +97,7 @@ class Settings:
             "gemini": [(name, value) for name, value in (("GEMINI_API_KEY", self.gemini_api_key), ("GEMINI_API_KEY_2", self.gemini_api_key_2)) if value],
             "openrouter": [(name, value) for name, value in (("OPENROUTER_API_KEY", self.openrouter_api_key), ("OPENROUTER_API_KEY_2", self.openrouter_api_key_2)) if value],
             "deepseek": [(name, value) for name, value in (("DEEPSEEK_API_KEY", self.deepseek_api_key), ("DEEPSEEK_API_KEY_2", self.deepseek_api_key_2)) if value],
+            "huggingface": [(name, value) for name, value in (("HUGGINGFACE_API_KEY", self.huggingface_api_key), ("HUGGINGFACE_API_KEY_2", self.huggingface_api_key_2)) if value],
             "jina": [("JINA_API_KEY", self.jina_api_key)] if self.jina_api_key else [],
             "mixedbread": [("MIXEDBREAD_API_KEY", self.mixedbread_api_key)] if self.mixedbread_api_key else [],
             "voyage": [("VOYAGE_API_KEY", self.voyage_api_key)] if self.voyage_api_key else [],
@@ -116,6 +130,8 @@ def load_settings() -> Settings:
         openrouter_api_key_2=os.getenv("OPENROUTER_API_KEY_2"),
         deepseek_api_key=os.getenv("DEEPSEEK_API_KEY"),
         deepseek_api_key_2=os.getenv("DEEPSEEK_API_KEY_2"),
+        huggingface_api_key=os.getenv("HUGGINGFACE_API_KEY"),
+        huggingface_api_key_2=os.getenv("HUGGINGFACE_API_KEY_2"),
         jina_api_key=os.getenv("JINA_API_KEY"),
         mixedbread_api_key=os.getenv("MIXEDBREAD_API_KEY"),
         voyage_api_key=os.getenv("VOYAGE_API_KEY"),
@@ -155,6 +171,16 @@ def load_settings() -> Settings:
         smart_summary_enabled=os.getenv("HUMANONN_SMART_SUMMARY", "true").lower() != "false",
         dynamic_findings_enabled=os.getenv("HUMANONN_DYNAMIC_FINDINGS", "true").lower() != "false",
         live_site_scraping_enabled=os.getenv("HUMANONN_LIVE_SITE_SCRAPING", "true").lower() != "false",
+        # Smart sampling envs
+        smart_conf_low=float(os.getenv("HUMANONN_SMART_CONF_LOW", "0.35")),
+        smart_conf_high=float(os.getenv("HUMANONN_SMART_CONF_HIGH", "0.65")),
+        smart_center_low=float(os.getenv("HUMANONN_SMART_CENTER_LOW", "0.45")),
+        smart_center_high=float(os.getenv("HUMANONN_SMART_CENTER_HIGH", "0.55")),
+        smart_top_k=int(os.getenv("HUMANONN_SMART_TOP_K", "10")),
+        smart_max_per_repo=int(os.getenv("HUMANONN_SMART_MAX_PER_REPO", "20")),
+        smart_global_cap=int(os.getenv("HUMANONN_SMART_GLOBAL_CAP", "100")),
+        smart_sample_outside_pct=float(os.getenv("HUMANONN_SMART_SAMPLE_OUTSIDE_PCT", "0.05")),
+        smart_cache_ttl_days=int(os.getenv("HUMANONN_SMART_CACHE_TTL_DAYS", "7")),
     )
 
 

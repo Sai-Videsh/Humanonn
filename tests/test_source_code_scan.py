@@ -1,4 +1,13 @@
 from humanonn import source_code
+from humanonn.model_routing import route_for
+
+
+def test_ats_review_route_has_free_tier_fallbacks() -> None:
+    candidates = route_for("ats_review")
+
+    assert [candidate.provider for candidate in candidates[:4]] == ["groq", "groq", "groq", "groq"]
+    assert [candidate.provider for candidate in candidates[4:7]] == ["openrouter", "openrouter", "openrouter"]
+    assert [candidate.provider for candidate in candidates[7:]] == ["huggingface", "huggingface", "huggingface"]
 
 
 def test_select_repo_files_for_scan_keeps_repo_wide_files() -> None:
@@ -41,3 +50,49 @@ def test_format_repo_file_structure_renders_tree_once() -> None:
     assert "components/" in structure
     assert "button.tsx" in structure
     assert structure.count("README.md") == 1
+
+
+def test_apply_source_ats_reviews_updates_borderline_source_findings() -> None:
+    findings = [
+        {
+            "id": "missing_readme",
+            "flagged": True,
+            "confidence": 0.6,
+            "points": 6,
+            "reason": "No README.md found in repository.",
+            "fix": "Add a project README.",
+            "evidence": {},
+        },
+        {
+            "id": "missing_gitignore",
+            "flagged": True,
+            "confidence": 0.95,
+            "points": 3,
+            "reason": "No .gitignore file found in repository.",
+            "fix": "Add a .gitignore file.",
+            "evidence": {},
+        },
+    ]
+    source_report = {
+        "repo_url": "https://github.com/example/repo",
+        "owner": "example",
+        "repo": "repo",
+        "branch": "main",
+        "files_scanned": 1,
+        "files_skipped": 0,
+        "fetched_file_structure": "`-- README.md",
+        "scan_log": [],
+        "findings": findings,
+    }
+
+    class DummySettings:
+        force_no_llm = False
+
+        def api_keys_for(self, provider: str) -> list[str]:
+            return []
+
+    notes = source_code._apply_source_ats_review(source_report, DummySettings())
+
+    assert notes == []
+    assert source_report["findings"][0]["flagged"] is True
+    assert source_report["findings"][0]["confidence"] == 0.6

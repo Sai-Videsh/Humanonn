@@ -40,6 +40,8 @@ class ModelRouter:
                     result = self._call_openrouter(candidate, system_prompt, user_payload, temperature, image_paths or [])
                 elif candidate.provider == "deepseek":
                     result = self._call_deepseek(candidate, system_prompt, user_payload, temperature)
+                elif candidate.provider == "huggingface":
+                    result = self._call_huggingface(candidate, system_prompt, user_payload, temperature)
                 else:
                     attempts.append({"bug_tag": candidate.bug_tag, "status": "skipped", "reason": "provider_not_supported"})
                     continue
@@ -227,6 +229,58 @@ class ModelRouter:
                 last_error = exc
         if last_error is None:
             raise RuntimeError("Missing DeepSeek API key.")
+        raise last_error
+
+    def _call_huggingface(
+        self,
+        candidate: ModelCandidate,
+        system_prompt: str,
+        user_payload: dict[str, Any],
+        temperature: float,
+    ) -> Any:
+        prompt = (
+            f"{system_prompt}\n\n"
+            "Return JSON only. Use the following input payload verbatim as context.\n"
+            f"{json.dumps(user_payload, ensure_ascii=True)}"
+        )
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                "temperature": temperature,
+                "max_new_tokens": 1024,
+                "return_full_text": False,
+            },
+            "options": {"wait_for_model": True},
+        }
+        last_error: Exception | None = None
+        for api_key in self.settings.api_keys_for("huggingface"):
+            try:
+                request = urllib.request.Request(
+                    f"https://api-inference.huggingface.co/models/{candidate.model}",
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {api_key}",
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(request, timeout=self.settings.navigation_timeout_ms / 1000) as response:
+                    body = json.loads(response.read().decode("utf-8"))
+                if isinstance(body, list) and body:
+                    item = body[0]
+                    if isinstance(item, dict):
+                        return item.get("generated_text") or item.get("summary_text") or json.dumps(item)
+                if isinstance(body, dict):
+                    if body.get("generated_text"):
+                        return body["generated_text"]
+                    if body.get("error"):
+                        raise RuntimeError(str(body["error"]))
+                    return json.dumps(body)
+                return json.dumps(body)
+            except Exception as exc:
+                last_error = exc
+        if last_error is None:
+            raise RuntimeError("Missing Hugging Face API key.")
         raise last_error
 
     def _call_jina_embeddings(self, candidate: ModelCandidate, texts: list[str]) -> list[list[float]]:

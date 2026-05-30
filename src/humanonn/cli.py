@@ -54,15 +54,15 @@ def main() -> None:
         try:
             source_only_mode = args.source_only or not args.url.strip()
             if source_only_mode:
-                report = build_source_only_report(args.url or "source-only", args.repo_url)
+                report = build_source_only_report(args.url or "source-only", args.repo_url, settings=settings)
                 report.scan_metadata.setdefault("scan_mode", "source_only")
             elif settings.live_site_scraping_enabled:
                 agent = HumanonnAgent(settings)
                 report = agent.scan(args.url)
-                report = apply_source_code_score(report, args.repo_url)
+                report = apply_source_code_score(report, args.repo_url, settings=settings)
                 report.scan_metadata.setdefault("scan_mode", "combined" if args.repo_url else "live_only")
             else:
-                report = build_source_only_report(args.url, args.repo_url)
+                report = build_source_only_report(args.url, args.repo_url, settings=settings)
                 report.scan_metadata.setdefault("scan_mode", "source_only")
         except RuntimeError as exc:
             parser.exit(1, f"Humanonn scan failed: {exc}\n")

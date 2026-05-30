@@ -6,6 +6,7 @@ from typing import Literal
 
 ModelTask = Literal[
     "main_orchestrator",
+    "ats_review",
     "vision",
     "fast_ambiguity",
     "fix_generation",
@@ -29,6 +30,18 @@ MODEL_ROUTES: dict[ModelTask, list[ModelCandidate]] = {
         ModelCandidate("main_orchestrator", "groq", "llama-3.3-70b-versatile", "primary", "MODEL_MAIN_GROQ_LLAMA33_70B"),
         ModelCandidate("main_orchestrator", "gemini", "gemini-2.5-flash", "direct_fallback", "MODEL_MAIN_GEMINI25_FLASH"),
         ModelCandidate("main_orchestrator", "openrouter", "qwen/qwen3-32b", "last_fallback", "MODEL_MAIN_OPENROUTER_QWEN3_32B", direct_api=False),
+    ],
+    "ats_review": [
+        ModelCandidate("ats_review", "groq", "llama-3.1-8b-instant", "primary", "MODEL_ATS_GROQ_LLAMA31_8B"),
+        ModelCandidate("ats_review", "groq", "gemma2-9b-it", "direct_fallback", "MODEL_ATS_GROQ_GEMMA2_9B"),
+        ModelCandidate("ats_review", "groq", "llama-3.3-70b-versatile", "direct_fallback", "MODEL_ATS_GROQ_LLAMA33_70B"),
+        ModelCandidate("ats_review", "groq", "llama-3.1-70b-versatile", "direct_fallback", "MODEL_ATS_GROQ_LLAMA31_70B"),
+        ModelCandidate("ats_review", "openrouter", "qwen/qwen2.5-7b-instruct:free", "free_fallback", "MODEL_ATS_OPENROUTER_QWEN25_7B_FREE", direct_api=False),
+        ModelCandidate("ats_review", "openrouter", "qwen/qwen2.5-14b-instruct", "direct_fallback", "MODEL_ATS_OPENROUTER_QWEN25_14B", direct_api=False),
+        ModelCandidate("ats_review", "openrouter", "microsoft/phi-3-medium-128k-instruct", "last_fallback", "MODEL_ATS_OPENROUTER_PHI3_MEDIUM", direct_api=False),
+        ModelCandidate("ats_review", "huggingface", "microsoft/Phi-3-mini-4k-instruct", "direct_fallback", "MODEL_ATS_HF_PHI3_MINI"),
+        ModelCandidate("ats_review", "huggingface", "Qwen/Qwen2.5-3B-Instruct", "direct_fallback", "MODEL_ATS_HF_QWEN25_3B"),
+        ModelCandidate("ats_review", "huggingface", "google/gemma-2-2b-it", "last_fallback", "MODEL_ATS_HF_GEMMA22B"),
     ],
     "vision": [
         ModelCandidate("vision", "gemini", "gemini-2.5-flash", "primary", "MODEL_VISION_GEMINI25_FLASH"),

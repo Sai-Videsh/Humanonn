@@ -289,14 +289,84 @@ def run_smart_scoring(
 
 
 def _run_ambiguity(router: ModelRouter, evidence_pack: dict[str, Any]) -> tuple[dict[str, Any], Any, list[dict[str, str]]]:
-    prompt = (PROMPT_ROOT / "fast_ambiguity.md").read_text(encoding="utf-8")
+    prompt = (PROMPT_ROOT / "ats_review.md").read_text(encoding="utf-8")
+    all_ambiguous = evidence_pack.get("ambiguous_signals", [])
+    selected, selection_meta = _select_ambiguous_for_ats(all_ambiguous, router.settings)
     payload = {
+        "scan_domain": "live",
         "site": evidence_pack["site"],
         "artifact_summary": evidence_pack["artifact_summary"],
-        "requested_signals": evidence_pack["ambiguous_signals"],
+        "requested_signals": selected,
+        "selection_meta": selection_meta,
     }
-    result, candidate, attempts = router.call_json("fast_ambiguity", prompt, payload, temperature=0.05)
+    result, candidate, attempts = router.call_json("ats_review", prompt, payload, temperature=0.05)
     return result, candidate, attempts
+
+
+def _select_ambiguous_for_ats(signals: list[dict[str, Any]], settings) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Select a subset of ambiguous signals to send to ATS using soft confidence-band sampling.
+
+    Returns (selected_signals, meta) where meta contains counts and reasons.
+    """
+    if not signals:
+        return [], {"selected": 0, "available": 0, "reasons": {}}
+
+    conf_low = float(getattr(settings, "smart_conf_low", 0.35))
+    conf_high = float(getattr(settings, "smart_conf_high", 0.65))
+    center_low = float(getattr(settings, "smart_center_low", 0.45))
+    center_high = float(getattr(settings, "smart_center_high", 0.55))
+    top_k = int(getattr(settings, "smart_top_k", 10))
+    max_per_repo = int(getattr(settings, "smart_max_per_repo", 20))
+    sample_outside = float(getattr(settings, "smart_sample_outside_pct", 0.05))
+
+    selected: list[dict[str, Any]] = []
+    reasons: dict[str, int] = {"center": 0, "within_band_sampled": 0, "outside_sampled": 0, "skipped": 0}
+
+    import random
+
+    candidates: list[tuple[float, dict[str, Any]]] = []
+    for s in signals:
+        conf = float(s.get("confidence", 0.0))
+        # priority buckets
+        if center_low <= conf <= center_high:
+            priority = 2
+        elif conf_low <= conf <= conf_high:
+            priority = 1
+        else:
+            priority = 0
+
+        # sampling
+        include = False
+        if priority == 2:
+            include = True
+            reasons["center"] += 1
+        elif priority == 1:
+            # soft sampling for near-center items
+            if random.random() < 0.5:
+                include = True
+                reasons["within_band_sampled"] += 1
+            else:
+                reasons["skipped"] += 1
+        else:
+            if random.random() < sample_outside:
+                include = True
+                reasons["outside_sampled"] += 1
+            else:
+                reasons["skipped"] += 1
+
+        if include:
+            # score for ranking (higher near center and with higher rule weight)
+            proximity = 1.0 - min(1.0, abs(conf - 0.5) * 2.0)
+            weight = float(s.get("weight", 1.0))
+            score = proximity * weight
+            candidates.append((score, s))
+
+    # sort and apply top-k and per-repo caps
+    candidates.sort(key=lambda t: t[0], reverse=True)
+    trimmed = [item for _, item in candidates][: min(top_k, max_per_repo)]
+
+    meta = {"selected": len(trimmed), "available": len(signals), "reasons": reasons}
+    return trimmed, meta
 
 
 def _run_vision(

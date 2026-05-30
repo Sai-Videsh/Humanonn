@@ -333,6 +333,7 @@ github_repo_url = st.text_input(
     "",
     placeholder="https://github.com/owner/repo",
 )
+st.caption("Note: Source-code scanning currently supports repositories built with Next.js, React, and Tailwind CSS.")
 st.session_state.setdefault("live_logs", [])
 st.session_state.setdefault("live_scan_running", False)
 st.session_state.setdefault("scan_stop_requested", False)
