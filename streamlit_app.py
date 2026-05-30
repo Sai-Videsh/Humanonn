@@ -98,6 +98,18 @@ def _render_log_window(placeholder, title: str, logs: list[str], empty_running_t
         st.html(log_html, unsafe_allow_javascript=True)
 
 
+def _is_source_scan_log_line(line: str) -> bool:
+    prefixes = (
+        "Starting source-code scan",
+        "Fetched ",
+        "Checked source rule ",
+        "Computed raw source code score ",
+        "Added normalized source code score ",
+        "Boosted DOM confidence to 1.0 from source-code agreement:",
+    )
+    return line.startswith(prefixes)
+
+
 def _scan_stdout_reader(process: subprocess.Popen[str], output_queue: queue.Queue[tuple[str, str | int]]) -> None:
     try:
         assert process.stdout is not None
@@ -110,25 +122,51 @@ def _scan_stdout_reader(process: subprocess.Popen[str], output_queue: queue.Queu
         output_queue.put(("error", str(exc)))
 
 
+def _scan_mode(url: str, repo_url: str | None) -> str:
+    has_live_url = bool(url.strip())
+    has_repo_url = bool(repo_url and repo_url.strip())
+    if has_live_url and has_repo_url:
+        return "combined"
+    if has_live_url:
+        return "live_only"
+    if has_repo_url:
+        return "source_only"
+    return "invalid"
+
+
 def _start_scan(url: str, repo_url: str | None = None) -> None:
     timestamp = int(time.time())
     out_dir = REPORTS_DIR / f"scan_{timestamp}"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_json = out_dir / "site.json"
 
+    mode = _scan_mode(url, repo_url)
+    if mode == "invalid":
+        return
+
     st.session_state["live_logs"] = []
+    st.session_state["source_logs"] = []
     st.session_state["live_scan_running"] = True
     st.session_state["scan_stop_requested"] = False
     st.session_state["scan_report_data"] = None
     st.session_state["scan_report_path"] = None
     st.session_state["latest_run_summary"] = None
+    st.session_state["scan_mode"] = mode
 
-    cmd = [sys.executable, "-u", "-m", "humanonn", "scan", url, "--json", str(out_json)]
-    if repo_url:
+    cmd = [sys.executable, "-u", "-m", "humanonn", "scan", "--json", str(out_json)]
+    env = os.environ.copy()
+    if mode == "source_only":
+        env["HUMANONN_LIVE_SITE_SCRAPING"] = "false"
+        cmd.append("--no-llm")
+        cmd.append("--source-only")
+    else:
+        cmd.insert(5, url.strip())
+    if repo_url and repo_url.strip():
         cmd.extend(["--repo-url", repo_url])
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
     process = subprocess.Popen(
         cmd,
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -173,7 +211,11 @@ def _drain_scan_output() -> None:
         except queue.Empty:
             break
         if kind == "line":
-            st.session_state["live_logs"].append(str(payload))
+            line = str(payload)
+            if _is_source_scan_log_line(line):
+                st.session_state.setdefault("source_logs", []).append(line)
+            else:
+                st.session_state["live_logs"].append(line)
         elif kind == "error":
             st.session_state["live_logs"].append(f"ERROR: {payload}")
             finished = True
@@ -204,9 +246,14 @@ def _drain_scan_output() -> None:
             st.session_state["scan_report_path"] = None
 
 
-def _source_code_log_lines(report_data: dict | None) -> list[str]:
+def _source_code_log_lines(report_data: dict | None, running: bool = False) -> list[str]:
+    session_logs = [str(line) for line in st.session_state.get("source_logs", [])]
+    if running and session_logs:
+        return session_logs
     if not report_data:
-        return []
+        return session_logs
+    if isinstance(report_data.get("scan_code_log"), list) and report_data.get("scan_code_log"):
+        return [str(line) for line in report_data.get("scan_code_log", [])]
     source_code = report_data.get("source_code") if isinstance(report_data.get("source_code"), dict) else {}
     score_block = report_data.get("score") if isinstance(report_data.get("score"), dict) else {}
     logs = source_code.get("scan_log") if isinstance(source_code.get("scan_log"), list) else []
@@ -235,13 +282,21 @@ def _source_code_log_lines(report_data: dict | None) -> list[str]:
     return fallback
 
 
-def _live_site_log_lines(report_data: dict | None) -> list[str]:
+def _live_site_log_lines(report_data: dict | None, scan_mode: str | None = None) -> list[str]:
     if not report_data:
+        if scan_mode == "source_only":
+            return ["No live link was provided, so live scoring is not included."]
         return []
+    if isinstance(report_data.get("scan_live_log"), list) and report_data.get("scan_live_log"):
+        return [str(line) for line in report_data.get("scan_live_log", [])]
     score_block = report_data.get("score") if isinstance(report_data.get("score"), dict) else {}
+    report_mode = report_data.get("scan_metadata", {}).get("scan_mode") if isinstance(report_data.get("scan_metadata"), dict) else None
     vibe = report_data.get("vibe_score") or score_block.get("vibe_score") or report_data.get("final_score")
     rendered = score_block.get("rendered_vibe_score")
     lines: list[str] = []
+    if scan_mode == "source_only" or report_mode == "source_only":
+        lines.append("No live link was provided, so live scoring is not included.")
+        return lines
     if rendered is not None:
         lines.append(f"Live site score: {rendered}/100")
     if vibe is not None:
@@ -251,9 +306,15 @@ def _live_site_log_lines(report_data: dict | None) -> list[str]:
 
 def _render_scan_controls() -> None:
     left, right = st.columns(2)
-    start_clicked = left.button("Start scan", disabled=st.session_state["live_scan_running"])
+    mode = _scan_mode(url, github_repo_url)
+    start_label = {
+        "combined": "Start combined scan",
+        "live_only": "Start live scan",
+        "source_only": "Start source scan",
+    }.get(mode, "Start scan")
+    start_clicked = left.button(start_label, disabled=st.session_state["live_scan_running"] or mode == "invalid")
     stop_clicked = right.button("Stop scan", disabled=not st.session_state["live_scan_running"])
-    if start_clicked and url:
+    if start_clicked:
         _start_scan(url, github_repo_url.strip() or None)
         st.rerun()
     if stop_clicked:
@@ -282,6 +343,8 @@ st.session_state.setdefault("scan_output_path", None)
 st.session_state.setdefault("scan_report_data", None)
 st.session_state.setdefault("scan_report_path", None)
 st.session_state.setdefault("latest_run_summary", None)
+st.session_state.setdefault("scan_mode", "invalid")
+st.session_state.setdefault("source_logs", [])
 
 _render_scan_controls()
 
@@ -290,12 +353,12 @@ with st.expander("Show live logs", expanded=False):
     live_log_box = st.empty()
     if st.session_state["live_scan_running"]:
         _drain_scan_output()
-    live_logs = _live_site_log_lines(st.session_state.get("scan_report_data") or None) + st.session_state["live_logs"]
+    live_logs = _live_site_log_lines(st.session_state.get("scan_report_data") or None, st.session_state.get("scan_mode")) + st.session_state["live_logs"]
     _render_live_logs(live_log_box, live_logs, st.session_state["live_scan_running"])
 
 with st.expander("Show source code scan", expanded=False):
     source_log_box = st.empty()
-    source_logs = _source_code_log_lines(st.session_state.get("scan_report_data") or None)
+    source_logs = _source_code_log_lines(st.session_state.get("scan_report_data") or None, st.session_state["live_scan_running"])
     _render_log_window(
         source_log_box,
         "humanonn-source-code-log",
@@ -413,8 +476,8 @@ with right_col:
 
         st.markdown(f"**URL:** {report_url}")
         st.markdown(f"**Title:** {report_title}")
-        st.markdown(f"### {category}")
         st.markdown(f"**Merged Vibe Score:** {vibe if vibe is not None else '—'}/100")
+        st.markdown(f"### {category}")
         if score_mode == "source_only":
             st.markdown("**Live Site Score:** —/100")
             st.markdown("**Source-only mode:** live site scraping is disabled; score is driven by source-code findings.")

@@ -9,6 +9,7 @@ from typing import Any
 
 from humanonn.models import AuditReport, ScoreSummary, SignalBucket, SignalFinding, SignalTier
 from humanonn.scoring import clamp, get_category, score_findings, MAX_RAW_SCORE
+from humanonn.runtime import terminal_log
 
 
 SOURCE_RULE_POINTS = {
@@ -32,6 +33,47 @@ SOURCE_RULE_POINTS = {
     # Tier 4 polish: 2 × 1.0 × 1.4 = 3
     "production_placeholders": 3,
     "unoptimized_images_source": 3,
+
+    # Additional checks (new)
+    "barrel_index_exports": 13,
+    "has_test_or_story_files": 4,
+    "many_default_exports": 13,
+    "custom_hooks_present": 13,
+    "potential_prop_drilling": 13,
+    "any_type_usage": 4,
+    "missing_useeffect_deps": 13,
+    "missing_globals_css": 6,
+    "css_custom_properties_present": 6,
+    "tailwind_spacing_scale_missing": 13,
+    "tailwind_extend_spacing": 6,
+    "at_layer_usage": 4,
+    "inline_keyframes_present": 4,
+    "duplicate_classname_patterns": 4,
+    "unminified_build_artifacts": 3,
+    "large_component_files": 4,
+    "deep_component_folder_nesting": 6,
+    "missing_eslint_config": 6,
+    "missing_prettier_config": 4,
+    "env_example_missing": 6,
+    "pinned_dependencies_absent": 6,
+    "missing_readme": 6,
+    "lacks_storybook_config": 4,
+    "many_anys_count": 4,
+    "many_todos_count": 4,
+    "missing_license": 3,
+    "missing_gitignore": 3,
+    "uses_eval_or_newfunction": 13,
+    "inline_styles_usage": 4,
+    "many_inline_images": 3,
+    "missing_img_alt": 13,
+    "multiple_package_managers": 4,
+    "large_barrel_export_index": 6,
+    "missing_tsconfig": 6,
+    "uses_window_global_state": 6,
+    "direct_dom_manipulation": 13,
+    "uses_next_router_or_router_fallback": 6,
+    "deprecated_lifecycle_methods": 13,
+    "unstable_api_usage": 6,
 }
 SOURCE_SCORE_CAP = sum(SOURCE_RULE_POINTS.values())
 SOURCE_DOM_SIGNAL_MAP = {
@@ -45,6 +87,17 @@ SOURCE_DOM_SIGNAL_MAP = {
     "outline_none_without_focus_replacement": ["missing_focus_states", "no_focus_visible_distinction"],
     "no_reduced_motion_source": ["no_reduced_motion"],
     "magic_zindex_source": ["z_index_magic_numbers"],
+    "barrel_index_exports": ["barrel_exports"],
+    "missing_globals_css": ["missing_global_css"],
+    "missing_useeffect_deps": ["missing_useeffect_deps"],
+}
+
+
+_SOURCE_SCAN_PROGRESS: dict[str, Any] = {
+    "enabled": False,
+    "count": 0,
+    "total": 0,
+    "log_fn": None,
 }
 
 
@@ -143,6 +196,7 @@ def apply_source_code_score(report: AuditReport, repo_url: str | None) -> AuditR
         f"rendered vibe score {rendered_vibe_score}, final vibe score {final_vibe_score}."
     )
     source_report["scan_log"] = scan_log
+    report.scan_code_log = list(scan_log)
     report.agent_notes.append(
         scan_log[-1]
     )
@@ -211,7 +265,9 @@ def _boost_dom_confidence_from_source(findings: list[SignalFinding], source_repo
 def scan_public_github_repo(repo_url: str) -> dict[str, Any]:
     owner, repo = _parse_github_repo(repo_url)
     default_branch = _fetch_default_branch(owner, repo)
-    scan_log = [f"Starting source-code scan for {owner}/{repo} on branch {default_branch}."]
+    scan_log: list[str] = []
+    _set_source_scan_progress(total=len(SOURCE_RULE_POINTS), scan_log=scan_log)
+    _emit_source_scan_progress(f"Starting source-code scan for {owner}/{repo} on branch {default_branch}.")
     tree = _fetch_json(f"https://api.github.com/repos/{owner}/{repo}/git/trees/{default_branch}?recursive=1")
     entries = tree.get("tree", [])
     paths = [
@@ -223,7 +279,7 @@ def scan_public_github_repo(repo_url: str) -> dict[str, Any]:
         SourceFile(path=path, content=_fetch_text(f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{path}"))
         for path in paths
     ]
-    scan_log.append(f"Fetched {len(files)} source files for scanning.")
+    _emit_source_scan_progress(f"Fetched {len(files)} source files for scanning.")
     findings = _evaluate_source_rules(files)
     # source_raw_score is weighted by confidence
     source_score = sum(finding.points * float(finding.confidence) for finding in findings if finding.flagged)
@@ -231,7 +287,8 @@ def scan_public_github_repo(repo_url: str) -> dict[str, Any]:
     for finding in findings:
         state = "FLAGGED" if finding.flagged else "clear"
         scan_log.append(f"[{state}] {finding.id} - {finding.reason}")
-    scan_log.append(f"Computed raw source code score {round(source_score,2)}/{SOURCE_SCORE_CAP}.")
+    _emit_source_scan_progress(f"Computed raw source code score {round(source_score,2)}/{SOURCE_SCORE_CAP}.")
+    _clear_source_scan_progress()
     return {
         "repo_url": repo_url,
         "owner": owner,
@@ -275,6 +332,75 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
     magic_zindex_matches = _magic_zindex_matches(code_files)
     unoptimized_image_matches = _unoptimized_image_matches(jsx_files, next_config_files)
     uniform_icon_matches = _uniform_icon_size_matches(code_files)
+
+    # New checks: file presence and regex-based heuristics
+    barrel_matches = _barrel_export_matches(files)
+    test_story_files = [file.path for file in files if re.search(r"\.test\.|\.spec\.|\.stories\.", file.path)]
+    default_export_matches = _matches_by_file(code_files, re.compile(r"export\s+default\s", flags=re.IGNORECASE))
+    custom_hooks = _matches_by_file(code_files, re.compile(r"function\s+use[A-Z]\w+|const\s+use[A-Z]\w+\s*=|export\s+function\s+use[A-Z]", flags=re.IGNORECASE))
+    # heuristic for prop-drilling: JSX tags with many props (>5) in a single component instance
+    prop_drill_matches = []
+    for file in jsx_files:
+        for match in re.finditer(r"<[A-Z][A-Za-z0-9_]*\b[^>]{30,400}>", file.content):
+            snippet = match.group(0)
+            props = re.findall(r"\w+\s*=\s*\{", snippet)
+            if len(props) >= 6:
+                prop_drill_matches.append({"path": file.path, "snippet": snippet[:240]})
+                break
+    any_usage_matches = _any_usage_matches([f for f in files if f.path.endswith(('.ts', '.tsx'))])
+    useeffect_no_deps = []
+    for file in code_files:
+        for snippet in _useeffect_call_snippets(file.content):
+            if not re.search(r"\,\s*\[\s*[^\]]*\s*\]", snippet):
+                useeffect_no_deps.append({"path": file.path, "snippet": snippet[:160]})
+                break
+    globals_css_files = [file for file in files if file.path.endswith("globals.css") or file.path.endswith("global.css")]
+    css_vars_present = bool(re.search(r"--[a-zA-Z0-9\-]+\s*:", all_text))
+    tailwind_config_text = "\n".join(f.content for f in tailwind_files)
+    tailwind_spacing = bool(re.search(r"spacing\s*:\s*\{", tailwind_config_text))
+    tailwind_extend_spacing = bool(re.search(r"extend\s*:\s*\{[^}]*spacing", tailwind_config_text, flags=re.DOTALL))
+    at_layer_usage = bool(re.search(r"@layer\b", all_text))
+    inline_keyframes = bool(re.search(r"@keyframes\b", all_text))
+    duplicate_classname = []
+    for file in code_files:
+        classes = re.findall(r"className\s*=\s*\{?['\"]([^'\"]+)['\"]\}?", file.content)
+        seen: dict[str, int] = {}
+        for cls in classes:
+            seen[cls] = seen.get(cls, 0) + 1
+            if seen[cls] >= 3:
+                duplicate_classname.append({"path": file.path, "class": cls})
+                break
+    unminified_build = [file.path for file in files if re.search(r"\.bundle\.js$|\.min\.js$", file.path) and not file.path.endswith('.min.js')]
+    large_files = [file.path for file in files if len(file.content) > 20000]
+    deep_nesting = [file.path for file in files if file.path.count('/') >= 6]
+    has_eslint = any(f.path.endswith('.eslintrc') or f.path.endswith('.eslintrc.json') for f in files)
+    has_prettier = any(f.path.endswith('.prettierrc') or f.path.endswith('.prettierrc.js') for f in files)
+    has_env_example = any(f.path.lower().endswith('.env.example') or f.path.lower().endswith('.env.sample') for f in files)
+    pkg_json = next((f for f in files if f.path.endswith('package.json')), None)
+    pinned_deps_absent = False
+    multiple_lock = any(f.path.endswith('package-lock.json') or f.path.endswith('yarn.lock') or f.path.endswith('pnpm-lock.yaml') for f in files)
+    many_anys = sum(_count_any_usages(f.content) for f in files if f.path.endswith(('.ts', '.tsx')))
+    many_todos = sum(len(re.findall(r"\bTODO\b", f.content)) for f in files)
+    has_license = any(f.path.lower().startswith('license') or f.path.lower().endswith('license') for f in files)
+    has_gitignore = any(f.path == '.gitignore' for f in files)
+    eval_usage = _matches_by_file(code_files, re.compile(r"\beval\s*\(|new\s+Function\s*\(", flags=re.IGNORECASE))
+    inline_styles = _matches_by_file(jsx_files, re.compile(r"style=\{\s*\{", flags=re.IGNORECASE))
+    inline_images_count = sum(len(re.findall(r"<img\b", f.content, flags=re.IGNORECASE)) for f in jsx_files)
+    imgs_missing_alt = []
+    for file in jsx_files:
+        for m in re.finditer(r"<img\b([^>]*)>", file.content, flags=re.IGNORECASE):
+            attrs = m.group(1)
+            if not re.search(r"\balt\s*=", attrs):
+                imgs_missing_alt.append({"path": file.path, "snippet": attrs[:120]})
+                break
+    multiple_pkg_mgr = multiple_lock
+    large_barrel = [m for m in barrel_matches if len(m.get('matches', [])) >= 8]
+    has_tsconfig = any(f.path.endswith('tsconfig.json') for f in files)
+    uses_window = bool(re.search(r"\bwindow\.\w+\b", all_text))
+    dom_manip = bool(re.search(r"document\.querySelector|getElementById|createElement\(|appendChild\(|innerHTML\s*=", all_text))
+    uses_next_router = bool(re.search(r"next/router|useRouter\(|next/navigation", all_text))
+    deprecated_lifecycle = bool(re.search(r"componentWillMount|componentWillReceiveProps|componentWillUpdate", all_text))
+    unstable_api = bool(re.search(r"unstable_|experimental|next/experimental", all_text))
 
     # helper to compute confidence from matches list length
     def conf_from_file_count(matches_list: list[dict[str, Any]]) -> float:
@@ -324,6 +450,47 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
     missing_tailwind_conf = 0.8 if _uses_tailwind_classes(all_text) and not _has_custom_tailwind_colors(tailwind_files) else 0.0
     default_font_conf = 0.8 if _uses_default_font_stack(code_files, tailwind_files) else 0.0
     unoptimized_images_conf = 0.9 if unoptimized_image_matches else 0.0
+
+    # confidences for new heuristics
+    barrel_conf = conf_from_file_count(barrel_matches)
+    tests_conf = 0.8 if len(test_story_files) >= 2 else (0.6 if test_story_files else 0.0)
+    default_export_conf = conf_from_file_count(default_export_matches)
+    hooks_conf = conf_from_file_count(custom_hooks)
+    prop_drill_conf = 0.9 if prop_drill_matches else 0.0
+    any_conf = conf_from_file_count(any_usage_matches)
+    useeffect_conf = 0.9 if useeffect_no_deps else 0.0
+    globals_conf = 0.9 if globals_css_files and not css_vars_present else (0.6 if globals_css_files else 0.0)
+    css_vars_conf = 0.9 if css_vars_present else 0.0
+    tailwind_spacing_conf = 0.9 if not tailwind_spacing and _uses_tailwind_classes(all_text) else (0.0 if tailwind_spacing else 0.0)
+    tailwind_extend_conf = 0.8 if tailwind_extend_spacing else 0.0
+    at_layer_conf = 0.8 if at_layer_usage else 0.0
+    keyframes_conf = 0.8 if inline_keyframes else 0.0
+    dup_class_conf = 0.8 if duplicate_classname else 0.0
+    unmin_conf = 0.7 if unminified_build else 0.0
+    large_files_conf = 0.8 if large_files else 0.0
+    deep_nest_conf = 0.7 if deep_nesting else 0.0
+    eslint_conf = 0.0 if has_eslint else 0.8
+    prettier_conf = 0.0 if has_prettier else 0.6
+    env_conf = 0.0 if has_env_example else 0.8
+    pinned_conf = 0.8 if pkg_json and re.search(r"\^|~", pkg_json.content) else 0.0
+    readme_conf = 0.0 if any(f.path.lower().endswith('readme.md') for f in files) else 0.8
+    storybook_conf = 0.8 if not any(f.path.startswith('.storybook') or f.path.startswith('storybook') for f in files) else 0.0
+    many_anys_conf = 0.9 if many_anys >= 4 else (0.6 if many_anys >= 2 else 0.0)
+    many_todos_conf = 0.8 if many_todos >= 3 else (0.6 if many_todos >= 1 else 0.0)
+    license_conf = 0.0 if has_license else 0.6
+    gitignore_conf = 0.0 if has_gitignore else 0.6
+    eval_conf = conf_from_file_count(eval_usage)
+    inline_styles_conf = conf_from_file_count(inline_styles)
+    many_imgs_conf = 0.8 if inline_images_count >= 6 else (0.6 if inline_images_count >= 2 else 0.0)
+    missing_alt_conf = 0.9 if imgs_missing_alt else 0.0
+    multiple_mgr_conf = 0.8 if multiple_pkg_mgr else 0.0
+    large_barrel_conf = 0.8 if large_barrel else 0.0
+    tsconfig_conf = 0.0 if has_tsconfig else 0.8
+    window_conf = 0.8 if uses_window else 0.0
+    dom_conf = 0.9 if dom_manip else 0.0
+    router_conf = 0.8 if uses_next_router else 0.0
+    deprecated_conf = 0.9 if deprecated_lifecycle else 0.0
+    unstable_conf = 0.7 if unstable_api else 0.0
 
     return [
         _source_finding(
@@ -495,6 +662,435 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
             else "Icon sizing varies or could not be confirmed from the scanned source.",
             {"matches": uniform_icon_matches[:12]},
         ),
+        _source_finding(
+            "barrel_index_exports",
+            "Barrel/index export usage detected",
+            2,
+            "structure",
+            SOURCE_RULE_POINTS["barrel_index_exports"],
+            bool(barrel_matches),
+            barrel_conf,
+            "Found index/barrel exports in source files.",
+            {"matches": barrel_matches[:12]},
+        ),
+        _source_finding(
+            "has_test_or_story_files",
+            "Repository contains test or story files",
+            3,
+            "quality",
+            SOURCE_RULE_POINTS["has_test_or_story_files"],
+            bool(test_story_files),
+            tests_conf,
+            "Found test or story files indicating component testing/stories.",
+            {"files": test_story_files[:12]},
+        ),
+        _source_finding(
+            "many_default_exports",
+            "Multiple default exports present",
+            2,
+            "structure",
+            SOURCE_RULE_POINTS["many_default_exports"],
+            bool(default_export_matches),
+            default_export_conf,
+            "Default exports present in source files.",
+            {"matches": default_export_matches[:12]},
+        ),
+        _source_finding(
+            "custom_hooks_present",
+            "Custom React hooks detected",
+            2,
+            "structure",
+            SOURCE_RULE_POINTS["custom_hooks_present"],
+            bool(custom_hooks),
+            hooks_conf,
+            "Custom hooks (useXYZ) were detected in source.",
+            {"matches": custom_hooks[:12]},
+        ),
+        _source_finding(
+            "potential_prop_drilling",
+            "Potential prop-drilling heuristic (large prop lists)",
+            2,
+            "structure",
+            SOURCE_RULE_POINTS["potential_prop_drilling"],
+            bool(prop_drill_matches),
+            prop_drill_conf,
+            "Found component instances with many props in JSX suggesting prop drilling.",
+            {"matches": prop_drill_matches[:6]},
+        ),
+        _source_finding(
+            "any_type_usage",
+            "Uses TypeScript `any` type",
+            3,
+            "quality",
+            SOURCE_RULE_POINTS["any_type_usage"],
+            bool(any_usage_matches),
+            any_conf,
+            "Found uses of `any` in TypeScript source.",
+            {"matches": any_usage_matches[:12]},
+        ),
+        _source_finding(
+            "missing_useeffect_deps",
+            "useEffect calls without dependency arrays",
+            2,
+            "quality",
+            SOURCE_RULE_POINTS["missing_useeffect_deps"],
+            bool(useeffect_no_deps),
+            useeffect_conf,
+            "Detected useEffect calls that likely lack dependency arrays.",
+            {"matches": useeffect_no_deps[:12]},
+        ),
+        _source_finding(
+            "missing_globals_css",
+            "Missing or empty globals.css",
+            2,
+            "style",
+            SOURCE_RULE_POINTS["missing_globals_css"],
+            bool(globals_css_files) and not css_vars_present,
+            globals_conf,
+            "globals.css present but no CSS custom properties found." if globals_css_files else "No globals.css found.",
+            {"globals_files": [f.path for f in globals_css_files]},
+        ),
+        _source_finding(
+            "css_custom_properties_present",
+            "CSS custom properties present",
+            2,
+            "style",
+            SOURCE_RULE_POINTS["css_custom_properties_present"],
+            css_vars_present,
+            css_vars_conf,
+            "CSS custom properties were found in source.",
+            {"present": css_vars_present},
+        ),
+        _source_finding(
+            "tailwind_spacing_scale_missing",
+            "Tailwind spacing scale appears unextended",
+            2,
+            "style",
+            SOURCE_RULE_POINTS["tailwind_spacing_scale_missing"],
+            _uses_tailwind_classes(all_text) and not tailwind_spacing,
+            tailwind_spacing_conf,
+            "Tailwind classes used but no spacing scale found in tailwind.config.",
+            {"tailwind_config_files": [file.path for file in tailwind_files]},
+        ),
+        _source_finding(
+            "tailwind_extend_spacing",
+            "Tailwind extend.spacing usage detected",
+            3,
+            "style",
+            SOURCE_RULE_POINTS["tailwind_extend_spacing"],
+            tailwind_extend_spacing,
+            tailwind_extend_conf,
+            "tailwind.config extends spacing scale.",
+            {"tailwind_config_files": [file.path for file in tailwind_files]},
+        ),
+        _source_finding(
+            "at_layer_usage",
+            "@layer usage in CSS/tailwind",
+            3,
+            "style",
+            SOURCE_RULE_POINTS["at_layer_usage"],
+            at_layer_usage,
+            at_layer_conf,
+            "Found @layer rules in CSS or config.",
+            {},
+        ),
+        _source_finding(
+            "inline_keyframes_present",
+            "Inline @keyframes detected",
+            3,
+            "style",
+            SOURCE_RULE_POINTS["inline_keyframes_present"],
+            inline_keyframes,
+            keyframes_conf,
+            "Inline keyframes present in CSS/source.",
+            {},
+        ),
+        _source_finding(
+            "duplicate_classname_patterns",
+            "Duplicate className patterns in source",
+            3,
+            "style",
+            SOURCE_RULE_POINTS["duplicate_classname_patterns"],
+            bool(duplicate_classname),
+            dup_class_conf,
+            "Found duplicate className patterns in files.",
+            {"matches": duplicate_classname[:12]},
+        ),
+        _source_finding(
+            "unminified_build_artifacts",
+            "Unminified build artifacts present",
+            4,
+            "ops",
+            SOURCE_RULE_POINTS["unminified_build_artifacts"],
+            bool(unminified_build),
+            unmin_conf,
+            "Found build artifact files that look unminified or bundles.",
+            {"files": unminified_build[:12]},
+        ),
+        _source_finding(
+            "large_component_files",
+            "Large source files detected",
+            3,
+            "quality",
+            SOURCE_RULE_POINTS["large_component_files"],
+            bool(large_files),
+            large_files_conf,
+            "Found very large source files (>20k chars).",
+            {"files": large_files[:12]},
+        ),
+        _source_finding(
+            "deep_component_folder_nesting",
+            "Deeply nested component folders detected",
+            2,
+            "structure",
+            SOURCE_RULE_POINTS["deep_component_folder_nesting"],
+            bool(deep_nesting),
+            deep_nest_conf,
+            "Found files nested deeply in directories (>=6 levels).",
+            {"examples": deep_nesting[:12]},
+        ),
+        _source_finding(
+            "missing_eslint_config",
+            "ESLint config missing",
+            2,
+            "quality",
+            SOURCE_RULE_POINTS["missing_eslint_config"],
+            not has_eslint,
+            eslint_conf,
+            "No ESLint configuration file found.",
+            {},
+        ),
+        _source_finding(
+            "missing_prettier_config",
+            "Prettier config missing",
+            3,
+            "quality",
+            SOURCE_RULE_POINTS["missing_prettier_config"],
+            not has_prettier,
+            prettier_conf,
+            "No Prettier configuration file found.",
+            {},
+        ),
+        _source_finding(
+            "env_example_missing",
+            "Missing .env.example or sample",
+            2,
+            "ops",
+            SOURCE_RULE_POINTS["env_example_missing"],
+            not has_env_example,
+            env_conf,
+            "No .env.example or .env.sample found in repository.",
+            {},
+        ),
+        _source_finding(
+            "pinned_dependencies_absent",
+            "Dependencies appear unpinned (semver ranges)",
+            2,
+            "ops",
+            SOURCE_RULE_POINTS["pinned_dependencies_absent"],
+            bool(pkg_json) and bool(re.search(r"\^|~", pkg_json.content)),
+            pinned_conf,
+            "package.json contains semver ranges like ^ or ~ indicating unpinned deps.",
+            {"path": pkg_json.path if pkg_json else None},
+        ),
+        _source_finding(
+            "missing_readme",
+            "Repository README missing",
+            2,
+            "ops",
+            SOURCE_RULE_POINTS["missing_readme"],
+            not any(f.path.lower().endswith('readme.md') for f in files),
+            readme_conf,
+            "No README.md found in repository.",
+            {},
+        ),
+        _source_finding(
+            "lacks_storybook_config",
+            "No Storybook config detected",
+            3,
+            "quality",
+            SOURCE_RULE_POINTS["lacks_storybook_config"],
+            not any(f.path.startswith('.storybook') or f.path.startswith('storybook') for f in files),
+            storybook_conf,
+            "No .storybook or storybook config found.",
+            {},
+        ),
+        _source_finding(
+            "many_anys_count",
+            "High count of TypeScript `any` usages",
+            3,
+            "quality",
+            SOURCE_RULE_POINTS["many_anys_count"],
+            many_anys >= 4,
+            many_anys_conf,
+            f"Found {many_anys} uses of `any` in TS files.",
+            {},
+        ),
+        _source_finding(
+            "many_todos_count",
+            "Many TODO markers in source",
+            3,
+            "quality",
+            SOURCE_RULE_POINTS["many_todos_count"],
+            many_todos >= 3,
+            many_todos_conf,
+            f"Found {many_todos} TODO markers in source.",
+            {},
+        ),
+        _source_finding(
+            "missing_license",
+            "LICENSE file missing",
+            4,
+            "ops",
+            SOURCE_RULE_POINTS["missing_license"],
+            not has_license,
+            license_conf,
+            "No LICENSE file found in repository.",
+            {},
+        ),
+        _source_finding(
+            "missing_gitignore",
+            ".gitignore missing",
+            4,
+            "ops",
+            SOURCE_RULE_POINTS["missing_gitignore"],
+            not has_gitignore,
+            gitignore_conf,
+            "No .gitignore file found in repository.",
+            {},
+        ),
+        _source_finding(
+            "uses_eval_or_newfunction",
+            "Uses eval() or new Function()",
+            2,
+            "security",
+            SOURCE_RULE_POINTS["uses_eval_or_newfunction"],
+            bool(eval_usage),
+            eval_conf,
+            "Found use of eval or new Function in source.",
+            {"matches": eval_usage[:6]},
+        ),
+        _source_finding(
+            "inline_styles_usage",
+            "Inline style props detected",
+            3,
+            "style",
+            SOURCE_RULE_POINTS["inline_styles_usage"],
+            bool(inline_styles),
+            inline_styles_conf,
+            "Found inline style={{ ... }} usage in JSX.",
+            {"matches": inline_styles[:6]},
+        ),
+        _source_finding(
+            "many_inline_images",
+            "Many raw <img> tags detected",
+            4,
+            "content",
+            SOURCE_RULE_POINTS["many_inline_images"],
+            inline_images_count >= 6,
+            many_imgs_conf,
+            f"Found {inline_images_count} raw <img> usages in JSX files.",
+            {},
+        ),
+        _source_finding(
+            "missing_img_alt",
+            "Images missing alt attributes",
+            2,
+            "a11y",
+            SOURCE_RULE_POINTS["missing_img_alt"],
+            bool(imgs_missing_alt),
+            missing_alt_conf,
+            "Found <img> elements without alt attributes.",
+            {"matches": imgs_missing_alt[:12]},
+        ),
+        _source_finding(
+            "multiple_package_managers",
+            "Multiple package manager lockfiles detected",
+            4,
+            "ops",
+            SOURCE_RULE_POINTS["multiple_package_managers"],
+            multiple_pkg_mgr,
+            multiple_mgr_conf,
+            "Found multiple package manager lockfiles (yarn.lock, package-lock.json, pnpm-lock.yaml).",
+            {},
+        ),
+        _source_finding(
+            "large_barrel_export_index",
+            "Large barrel/index export detected",
+            3,
+            "structure",
+            SOURCE_RULE_POINTS["large_barrel_export_index"],
+            bool(large_barrel),
+            large_barrel_conf,
+            "Found barrel/index exports exporting many symbols.",
+            {"examples": large_barrel[:6]},
+        ),
+        _source_finding(
+            "missing_tsconfig",
+            "tsconfig.json missing for TypeScript projects",
+            2,
+            "ops",
+            SOURCE_RULE_POINTS["missing_tsconfig"],
+            not has_tsconfig and any(f.path.endswith(('.ts', '.tsx')) for f in files),
+            tsconfig_conf,
+            "No tsconfig.json found while TypeScript files exist.",
+            {},
+        ),
+        _source_finding(
+            "uses_window_global_state",
+            "Window global state or globals used",
+            2,
+            "quality",
+            SOURCE_RULE_POINTS["uses_window_global_state"],
+            uses_window,
+            window_conf,
+            "Detected usage of window.<var> in source.",
+            {},
+        ),
+        _source_finding(
+            "direct_dom_manipulation",
+            "Direct DOM manipulation detected",
+            2,
+            "security",
+            SOURCE_RULE_POINTS["direct_dom_manipulation"],
+            dom_manip,
+            dom_conf,
+            "Found document.querySelector / innerHTML / appendChild usage.",
+            {},
+        ),
+        _source_finding(
+            "uses_next_router_or_router_fallback",
+            "Next/router or router fallbacks detected",
+            2,
+            "structure",
+            SOURCE_RULE_POINTS["uses_next_router_or_router_fallback"],
+            uses_next_router,
+            router_conf,
+            "Detected next/router or useRouter usage.",
+            {},
+        ),
+        _source_finding(
+            "deprecated_lifecycle_methods",
+            "Deprecated React lifecycle methods detected",
+            2,
+            "quality",
+            SOURCE_RULE_POINTS["deprecated_lifecycle_methods"],
+            deprecated_lifecycle,
+            deprecated_conf,
+            "Found deprecated React component lifecycle methods.",
+            {},
+        ),
+        _source_finding(
+            "unstable_api_usage",
+            "Unstable/experimental API usage detected",
+            3,
+            "quality",
+            SOURCE_RULE_POINTS["unstable_api_usage"],
+            unstable_api,
+            unstable_conf,
+            "Found keywords like unstable_/experimental or next/experimental imports.",
+            {},
+        ),
     ]
 
 
@@ -551,6 +1147,55 @@ def _matches_by_file(files: list[SourceFile], pattern: re.Pattern[str]) -> list[
         if found:
             matches.append({"path": file.path, "matches": found[:12]})
     return matches
+
+
+def _barrel_export_matches(files: list[SourceFile]) -> list[dict[str, Any]]:
+    matches: list[dict[str, Any]] = []
+    for file in files:
+        normalized = file.path.replace("\\", "/")
+        filename = normalized.rsplit("/", 1)[-1]
+        if not re.match(r"^index\.(?:ts|tsx|js|jsx|mjs)$", filename):
+            continue
+        export_lines = re.findall(
+            r"^\s*export\s+(?:\*\s+from|\{[^}]+\}\s+from)\s+['\"][^'\"]+['\"]\s*$",
+            file.content,
+            flags=re.MULTILINE,
+        )
+        if len(export_lines) >= 2 or any("export * from" in line for line in export_lines):
+            matches.append({"path": file.path, "matches": export_lines[:12]})
+    return matches
+
+
+def _any_usage_matches(files: list[SourceFile]) -> list[dict[str, Any]]:
+    matches: list[dict[str, Any]] = []
+    pattern = re.compile(
+        r"(?:\b:\s*any\b|\bas\s+any\b|\bany\s*\[\]|\bArray<\s*any\s*>|\bPromise<\s*any\s*>|\bRecord<[^>]*\bany\b[^>]*>)",
+        flags=re.IGNORECASE,
+    )
+    for file in files:
+        snippets: list[str] = []
+        for match in pattern.finditer(file.content):
+            start = max(0, match.start() - 24)
+            end = min(len(file.content), match.end() + 24)
+            snippets.append(" ".join(file.content[start:end].split())[:120])
+        if snippets:
+            matches.append({"path": file.path, "matches": snippets[:12]})
+    return matches
+
+
+def _count_any_usages(content: str) -> int:
+    pattern = re.compile(
+        r"(?:\b:\s*any\b|\bas\s+any\b|\bany\s*\[\]|\bArray<\s*any\s*>|\bPromise<\s*any\s*>|\bRecord<[^>]*\bany\b[^>]*>)",
+        flags=re.IGNORECASE,
+    )
+    return len(pattern.findall(content))
+
+
+def _useeffect_call_snippets(content: str) -> list[str]:
+    snippets: list[str] = []
+    for match in re.finditer(r"useEffect\s*\((?:.|\n){0,500}?\)", content):
+        snippets.append(match.group(0))
+    return snippets
 
 
 def _normalize_source_score(source_score: int) -> int:
@@ -635,7 +1280,7 @@ def _source_finding(
     reason: str,
     evidence: dict[str, Any],
 ) -> SourceFinding:
-    return SourceFinding(
+    finding = SourceFinding(
         id=signal_id,
         name=name,
         tier=tier,
@@ -647,6 +1292,9 @@ def _source_finding(
         reason=reason,
         evidence=evidence,
     )
+    _emit_source_scan_progress(f"Checked source rule {_SOURCE_SCAN_PROGRESS['count'] + 1}/{_SOURCE_SCAN_PROGRESS['total']}: {signal_id} -> {'FLAGGED' if flagged else 'clear'}")
+    _SOURCE_SCAN_PROGRESS["count"] = int(_SOURCE_SCAN_PROGRESS["count"]) + 1
+    return finding
 
 
 def _source_tier_counts(findings: list[SourceFinding]) -> dict[int, int]:
@@ -739,3 +1387,26 @@ def _uses_default_font_stack(code_files: list[SourceFile], tailwind_files: list[
         re.search(r"\bfontFamily\s*:\s*\{[^}]+", "\n".join(file.content for file in tailwind_files), flags=re.DOTALL)
     )
     return has_default and not has_custom_font_config
+
+
+def _set_source_scan_progress(total: int, scan_log: list[str]) -> None:
+    _SOURCE_SCAN_PROGRESS["enabled"] = True
+    _SOURCE_SCAN_PROGRESS["count"] = 0
+    _SOURCE_SCAN_PROGRESS["total"] = total
+    _SOURCE_SCAN_PROGRESS["log_fn"] = scan_log.append
+
+
+def _clear_source_scan_progress() -> None:
+    _SOURCE_SCAN_PROGRESS["enabled"] = False
+    _SOURCE_SCAN_PROGRESS["count"] = 0
+    _SOURCE_SCAN_PROGRESS["total"] = 0
+    _SOURCE_SCAN_PROGRESS["log_fn"] = None
+
+
+def _emit_source_scan_progress(message: str) -> None:
+    if not _SOURCE_SCAN_PROGRESS.get("enabled"):
+        return
+    log_fn = _SOURCE_SCAN_PROGRESS.get("log_fn")
+    if callable(log_fn):
+        log_fn(message)
+    terminal_log(message, True)

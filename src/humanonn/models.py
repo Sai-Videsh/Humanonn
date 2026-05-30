@@ -80,3 +80,5 @@ class AuditReport:
     dynamic_findings: list[dict[str, Any]] = field(default_factory=list)
     llm_evidence: dict[str, Any] = field(default_factory=dict)
     source_code: dict[str, Any] = field(default_factory=dict)
+    scan_live_log: list[str] = field(default_factory=list)
+    scan_code_log: list[str] = field(default_factory=list)
