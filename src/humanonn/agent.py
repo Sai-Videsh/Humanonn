@@ -317,6 +317,7 @@ class HumanonnAgent:
         self.registry.snapshot.raw["llm_adjustment_evidence_floor"] = self.settings.llm_adjustment_evidence_floor
         self.registry.snapshot.raw["llm_adjustment_single_source_cap"] = self.settings.llm_adjustment_single_source_cap
         self.registry.snapshot.raw["llm_adjustment_headroom_enabled"] = self.settings.llm_adjustment_headroom_enabled
+        self.registry.snapshot.raw["smart_scoring_gate_enabled"] = self.settings.smart_scoring_gate_enabled
         self.registry.snapshot.raw["smart_summary_enabled"] = self.settings.smart_summary_enabled
         self.registry.snapshot.raw["dynamic_findings_enabled"] = self.settings.dynamic_findings_enabled
         terminal_log("Building deterministic baseline before smart scoring", self.settings.terminal_logs)

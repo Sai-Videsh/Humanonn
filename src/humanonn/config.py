@@ -52,6 +52,7 @@ class Settings:
     llm_adjustment_evidence_floor: float = 0.35
     llm_adjustment_single_source_cap: float = 5.0
     llm_adjustment_headroom_enabled: bool = True
+    smart_scoring_gate_enabled: bool = False
     smart_summary_enabled: bool = True
     dynamic_findings_enabled: bool = True
     live_site_scraping_enabled: bool = True
@@ -150,6 +151,7 @@ def load_settings() -> Settings:
         llm_adjustment_evidence_floor=float(os.getenv("HUMANONN_LLM_ADJUSTMENT_EVIDENCE_FLOOR", "0.35")),
         llm_adjustment_single_source_cap=float(os.getenv("HUMANONN_LLM_ADJUSTMENT_SINGLE_SOURCE_CAP", "5.0")),
         llm_adjustment_headroom_enabled=os.getenv("HUMANONN_LLM_ADJUSTMENT_HEADROOM_ENABLED", "true").lower() != "false",
+        smart_scoring_gate_enabled=os.getenv("HUMANONN_SMART_SCORING_GATE", "false").lower() == "true",
         smart_summary_enabled=os.getenv("HUMANONN_SMART_SUMMARY", "true").lower() != "false",
         dynamic_findings_enabled=os.getenv("HUMANONN_DYNAMIC_FINDINGS", "true").lower() != "false",
         live_site_scraping_enabled=os.getenv("HUMANONN_LIVE_SITE_SCRAPING", "true").lower() != "false",

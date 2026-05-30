@@ -91,17 +91,18 @@ def run_smart_scoring(
     base_report: AuditReport,
     router: ModelRouter,
 ) -> AuditReport:
+    smart_scoring_gate_enabled = bool(snapshot.raw.get("smart_scoring_gate_enabled", False))
     vision_override = bool(snapshot.raw.get("needs_vision_override"))
     manifest = _load_manifest(snapshot.raw.get("manifest_path"))
     evidence_pack = _build_evidence_pack(snapshot, base_report.findings, manifest)
     hybrid_signal_trigger, hybrid_trigger_signal_ids = _has_hybrid_signal_trigger(base_report.findings, evidence_pack)
-    within_smart_gate = SMART_SCORING_GATE_MIN <= base_report.score.vibe_score <= SMART_SCORING_GATE_MAX
+    within_smart_gate = smart_scoring_gate_enabled and SMART_SCORING_GATE_MIN <= base_report.score.vibe_score <= SMART_SCORING_GATE_MAX
     should_run_smart_scoring = vision_override or within_smart_gate or hybrid_signal_trigger
     smart_notes = list(base_report.agent_notes)
     smart_summary_enabled = bool(snapshot.raw.get("smart_summary_enabled", True))
     dynamic_findings_enabled = bool(snapshot.raw.get("dynamic_findings_enabled", True))
 
-    if hybrid_signal_trigger and not within_smart_gate and not vision_override:
+    if smart_scoring_gate_enabled and hybrid_signal_trigger and not within_smart_gate and not vision_override:
         smart_notes.append(
             "Forced smart scoring from hybrid trigger signals outside score gate: "
             f"{', '.join(hybrid_trigger_signal_ids[:8])}."
@@ -121,7 +122,7 @@ def run_smart_scoring(
 
     artifact_root = Path(snapshot.raw.get("artifact_root", "")) if snapshot.raw.get("artifact_root") else None
 
-    if not evidence_pack["ambiguous_signals"] and not vision_override and not hybrid_signal_trigger:
+    if smart_scoring_gate_enabled and not evidence_pack["ambiguous_signals"] and not vision_override and not hybrid_signal_trigger:
         report = replace(base_report)
         report.agent_notes = [
             *smart_notes,
@@ -200,7 +201,7 @@ def run_smart_scoring(
         and (vision_result.get("score_hint", {}) or {}).get("direction") == "up"
     )
     if llm_adjustment_gate_enabled:
-        if not SMART_SCORING_GATE_MIN <= post_merge_deterministic.vibe_score <= SMART_SCORING_GATE_MAX and not strong_positive_llm_evidence:
+        if smart_scoring_gate_enabled and not SMART_SCORING_GATE_MIN <= post_merge_deterministic.vibe_score <= SMART_SCORING_GATE_MAX and not strong_positive_llm_evidence:
             zeroed_llm_note = (
                 (
                     "Zeroed LLM adjustment because post-merge deterministic score "
