@@ -8,6 +8,9 @@ import sys
 import time
 from pathlib import Path
 import os
+import urllib.parse
+import urllib.request
+import urllib.error
 
 ROOT = Path(__file__).parent
 REPORTS_DIR = ROOT / "reports" / "webui"
@@ -22,7 +25,7 @@ def _inject_css(path: Path):
 
 def _render_live_logs(placeholder, logs: list[str], running: bool) -> None:
     if logs:
-        body = "\n".join(html.escape(line) for line in logs[-300:])
+        body = "\n".join(html.escape(str(line)) for line in logs[-300:])
         # body = "\n".join(html.escape(line) for line in reversed(logs[-300:]))
     elif running:
         body = "Live logs will appear here while the scan runs."
@@ -69,7 +72,7 @@ def _render_live_logs(placeholder, logs: list[str], running: bool) -> None:
 
 def _render_log_window(placeholder, title: str, logs: list[str], empty_running_text: str, empty_idle_text: str) -> None:
     if logs:
-        body = "\n".join(html.escape(line) for line in logs[-300:])
+        body = "\n".join(html.escape(str(line)) for line in logs[-300:])
     else:
         body = empty_running_text if st.session_state.get("live_scan_running") else empty_idle_text
 
@@ -351,13 +354,192 @@ st.write("Run Humanonn scans from the browser. The server must have the repo and
 
 _inject_css(REPORTS_DIR / "style.css")
 
-url = st.text_input("URL to scan", "https://example.com")
+url = st.text_input("URL to scan", "", placeholder="https://example.com")
+
+# Quick client-side site availability check and inline error rendering below the URL input.
+def _quick_site_check(u: str) -> str | None:
+    if not u:
+        return None
+    try:
+        parsed = urllib.parse.urlparse(u.strip())
+        if parsed.scheme not in ("http", "https"):
+            return "URL must start with http:// or https://"
+        # try HEAD first
+        req = urllib.request.Request(u.strip(), headers={"User-Agent": "Humanonn/1.0"}, method="HEAD")
+        try:
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                code = getattr(resp, "status", None) or getattr(resp, "getcode", lambda: None)()
+                if code and 200 <= int(code) < 400:
+                    return None
+                return f"Site returned HTTP {code}."
+        except urllib.error.HTTPError as he:
+            # HEAD may not be allowed; try GET for more info
+            if he.code in (405,):
+                req2 = urllib.request.Request(u.strip(), headers={"User-Agent": "Humanonn/1.0"}, method="GET")
+                with urllib.request.urlopen(req2, timeout=3) as resp2:
+                    code2 = getattr(resp2, "status", None) or getattr(resp2, "getcode", lambda: None)()
+                    if code2 and 200 <= int(code2) < 400:
+                        return None
+                    return f"Site returned HTTP {code2}."
+            if he.code == 404:
+                return "Site returned 404 (not found)."
+            if he.code == 403:
+                return "Access denied (403) when fetching the site."
+            return f"Site request failed with HTTP {he.code}."
+        except urllib.error.URLError as ue:
+            return f"Could not reach site: {str(ue).splitlines()[0]}"
+    except Exception as exc:
+        return f"Could not verify site: {str(exc).splitlines()[0]}"
+
+# show quick site errors found locally or in-flight logs
+site_error = _quick_site_check(url)
+site_errors: list[str] = []
+if site_error:
+    site_errors.append(site_error)
+# also include in-flight or finished scan logs related to site errors
+report_data = st.session_state.get("scan_report_data")
+if report_data:
+    if isinstance(report_data.get("scan_live_log"), list):
+        site_errors.extend([str(x) for x in report_data.get("scan_live_log", []) if x])
+    if isinstance(report_data.get("agent_notes"), list):
+        site_errors.extend([str(x) for x in report_data.get("agent_notes", []) if "site" in str(x).lower() or "http" in str(x).lower()])
+inline_live = [str(x) for x in st.session_state.get("live_logs", []) or []]
+for line in inline_live:
+    if any(tok in line.lower() for tok in ("404", "not found", "access denied", "403", "could not reach", "timed out", "connection refused")):
+        site_errors.append(line)
+
+if site_errors:
+    seen = set()
+    compact: list[str] = []
+    for v in site_errors:
+        s = str(v).strip()
+        if not s or s in seen:
+            continue
+        seen.add(s)
+        compact.append(s)
+        if len(compact) >= 5:
+            break
+    html_block = "".join(f"<div>{html.escape(c)}</div>" for c in compact)
+    st.markdown(f"<div style='color:#ff3333; margin-top:6px;'>{html_block}</div>", unsafe_allow_html=True)
 github_repo_url = st.text_input(
     "Public GitHub repo URL for source-code scoring (Optional)",
     "",
     placeholder="https://github.com/owner/repo",
 )
 st.caption("Note: Source-code scanning currently supports repositories built with Next.js, React, and Tailwind CSS.")
+def _validate_github_repo_input(url: str) -> str | None:
+    """Return an error string when the input is clearly not a valid public GitHub repo URL."""
+    if not url:
+        return None
+    u = url.strip()
+    # Accept forms like: https://github.com/owner/repo or https://github.com/owner/repo.git
+    import re
+
+    pattern = re.compile(r"^https://(?:www\.)?github\.com/[^/\s]+/[^/\s]+(?:\.git)?/?$")
+    if not pattern.match(u):
+        return "Invalid GitHub repo URL — expected: https://github.com/owner/repo"
+    return None
+
+# Validate the GitHub repo input and show an inline red error message if invalid.
+_github_input_error = _validate_github_repo_input(github_repo_url)
+if _github_input_error:
+    st.markdown(f"<div style='color: #ff3333; margin-top: 6px;'>**Error:** {_github_input_error}</div>", unsafe_allow_html=True)
+else:
+    # quick existence check so 'repo not found' shows fast
+    def _quick_repo_check(url: str) -> str | None:
+        if not url:
+            return None
+        try:
+            # Prefer to reuse parsing and error mapping from source_code if available
+            try:
+                from humanonn.source_code import _parse_github_repo, _github_http_error_message
+            except Exception:
+                _parse_github_repo = None
+                _github_http_error_message = None
+
+            if _parse_github_repo:
+                owner, repo = _parse_github_repo(url)
+            else:
+                parsed = urllib.parse.urlparse(url.strip())
+                parts = [p for p in parsed.path.split("/") if p]
+                if len(parts) < 2:
+                    return "GitHub repo URL must point to the repository root like https://github.com/owner/repo."
+                owner, repo = parts[0], parts[1].removesuffix(".git")
+
+            api_url = f"https://api.github.com/repos/{owner}/{repo}"
+            req = urllib.request.Request(api_url, headers={"User-Agent": "Humanonn/1.0"})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                if resp.status == 200:
+                    return None
+                return f"GitHub request returned status {resp.status}."
+        except urllib.error.HTTPError as exc:
+            if _github_http_error_message:
+                return _github_http_error_message(api_url, exc)
+            if exc.code == 404:
+                return "GitHub repository not found or the owner/username is incorrect."
+            if exc.code == 403:
+                return "GitHub API request was forbidden or rate limited."
+            return f"GitHub request failed with HTTP {exc.code}."
+        except Exception as exc:
+            return f"Could not verify GitHub repo: {str(exc).splitlines()[0]}"
+
+    _repo_check_error = None
+    try:
+        _repo_check_error = _quick_repo_check(github_repo_url)
+    except Exception:
+        _repo_check_error = None
+    if _repo_check_error:
+        st.markdown(f"<div style='color: #ff3333; margin-top: 6px;'>**Error:** {_repo_check_error}</div>", unsafe_allow_html=True)
+# Display server-side scan errors (if any) and the merged final score below the GitHub input.
+report_data = st.session_state.get("scan_report_data")
+server_errors: list[str] = []
+
+# 1) Collect errors already present in the finished report data
+if report_data:
+    if isinstance(report_data.get("scan_code_log"), list):
+        server_errors.extend([str(x) for x in report_data.get("scan_code_log", []) if x])
+    source_code = report_data.get("source_code") if isinstance(report_data.get("source_code"), dict) else {}
+    if isinstance(source_code.get("scan_log"), list):
+        server_errors.extend([str(x) for x in source_code.get("scan_log", []) if x])
+    if isinstance(report_data.get("agent_notes"), list):
+        server_errors.extend([str(x) for x in report_data.get("agent_notes", []) if x])
+    for key in ("error", "scan_error", "scan_status"):
+        if report_data.get(key):
+            server_errors.append(str(report_data.get(key)))
+
+# 2) Also surface any in-flight error-like lines from the session log queues so repo-not-found appears fast
+import re
+err_pattern = re.compile(r"(?i)(github|repo|repository).*(not found|was not found|forbidden|rate limit|failed|could not be fetched|not supported|error|missing)")
+inline_logs = []
+inline_logs.extend([str(x) for x in st.session_state.get("source_logs", []) or []])
+inline_logs.extend([str(x) for x in st.session_state.get("live_logs", []) or []])
+for line in inline_logs:
+    if err_pattern.search(line) or "no supported frontend" in line.lower() or "repository not found" in line.lower():
+        server_errors.append(line)
+
+if server_errors:
+    # render up to 10 unique errors in red
+    seen = set()
+    compact: list[str] = []
+    for v in server_errors:
+        s = str(v).strip()
+        if not s or s in seen:
+            continue
+        seen.add(s)
+        compact.append(s)
+        if len(compact) >= 10:
+            break
+    html_block = "".join(f"<div>{c}</div>" for c in compact)
+    st.markdown(f"<div style='color:#ff3333; margin-top:6px;'>{html_block}</div>", unsafe_allow_html=True)
+
+# Render merged final score (vibe/final_score) in green, plain value only
+merged_score = None
+if report_data:
+    score_block = report_data.get("score") if isinstance(report_data.get("score"), dict) else {}
+    merged_score = report_data.get("vibe_score") or score_block.get("vibe_score") or report_data.get("final_score")
+if merged_score is not None:
+    # Print only the score value in green, no explanation
+    st.markdown(f"<div style='color:#00AA33; font-size:1.3em; margin-top:6px;'>{merged_score}</div>", unsafe_allow_html=True)
 st.session_state.setdefault("live_logs", [])
 st.session_state.setdefault("live_scan_running", False)
 st.session_state.setdefault("scan_stop_requested", False)

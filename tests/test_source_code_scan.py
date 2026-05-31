@@ -1,3 +1,7 @@
+import urllib.error
+
+import pytest
+
 from humanonn import source_code
 from humanonn.model_routing import route_for
 
@@ -10,9 +14,8 @@ def test_ats_review_route_has_free_tier_fallbacks() -> None:
     assert [candidate.provider for candidate in candidates[7:]] == ["huggingface", "huggingface", "huggingface"]
 
 
-def test_select_repo_files_for_scan_keeps_repo_wide_files() -> None:
+def test_select_repo_files_for_scan_skips_non_frontend_files() -> None:
     entries = [
-        {"type": "blob", "path": "README.md", "sha": "1", "size": 1200},
         {"type": "blob", "path": "src/app.tsx", "sha": "2", "size": 2400},
         {"type": "blob", "path": "assets/diagram.png", "sha": "3", "size": 2_000_000},
         {"type": "blob", "path": "assets/trailer.mp4", "sha": "4", "size": 900 * 1024 * 1024},
@@ -27,8 +30,63 @@ def test_select_repo_files_for_scan_keeps_repo_wide_files() -> None:
         entries=entries,
     )
 
-    assert [entry["path"] for entry in file_entries] == ["README.md", "src/app.tsx", "assets/diagram.png"]
-    assert [entry["path"] for entry in skipped_entries] == ["assets/trailer.mp4", "archives/full-backup.zip"]
+    assert [entry["path"] for entry in file_entries] == ["src/app.tsx"]
+    assert [entry["path"] for entry in skipped_entries] == ["assets/diagram.png", "assets/trailer.mp4", "archives/full-backup.zip"]
+
+
+def test_select_repo_files_for_scan_prefers_supported_frontend_files() -> None:
+    entries = [
+        {"type": "blob", "path": "src/app.tsx", "sha": "1", "size": 1200},
+        {"type": "blob", "path": "src/api/server.py", "sha": "2", "size": 1200},
+        {"type": "blob", "path": "tailwind.config.js", "sha": "3", "size": 1200},
+        {"type": "blob", "path": "docs/notes.md", "sha": "4", "size": 1200},
+    ]
+
+    file_entries, skipped_entries = source_code._select_repo_files_for_scan(
+        owner="example",
+        repo="repo",
+        default_branch="main",
+        entries=entries,
+    )
+
+    assert [entry["path"] for entry in file_entries] == ["src/app.tsx", "tailwind.config.js"]
+    assert any(entry["path"] == "src/api/server.py" and "unsupported frontend language" in entry["reason"] for entry in skipped_entries)
+
+
+def test_select_repo_files_for_scan_rejects_repos_without_frontend_sources() -> None:
+    entries = [
+        {"type": "blob", "path": "src/main.py", "sha": "1", "size": 1200},
+        {"type": "blob", "path": "backend/app.go", "sha": "2", "size": 1200},
+    ]
+
+    with pytest.raises(ValueError, match="No supported frontend source files were found"):
+        source_code._select_repo_files_for_scan(
+            owner="example",
+            repo="repo",
+            default_branch="main",
+            entries=entries,
+        )
+
+
+def test_parse_github_repo_requires_repository_root_url() -> None:
+    assert source_code._parse_github_repo("https://www.github.com/example/repo.git") == ("example", "repo")
+
+    with pytest.raises(ValueError, match="repository root"):
+        source_code._parse_github_repo("https://github.com/example/repo/tree/main")
+
+
+def test_github_http_error_message_reports_repo_not_found() -> None:
+    exc = urllib.error.HTTPError(
+        url="https://api.github.com/repos/example/missing",
+        code=404,
+        msg="Not Found",
+        hdrs=None,
+        fp=None,
+    )
+
+    message = source_code._github_http_error_message("https://api.github.com/repos/example/missing", exc)
+
+    assert "repository not found" in message.lower()
 
 
 def test_raw_github_file_url_preserves_nested_paths() -> None:

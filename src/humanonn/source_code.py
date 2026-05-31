@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass
@@ -45,6 +46,55 @@ LIKELY_BINARY_OR_MEDIA_EXTENSIONS = {
     ".woff2",
     ".zip",
 }
+
+SUPPORTED_FRONTEND_EXTENSIONS = {
+    ".cjs",
+    ".css",
+    ".htm",
+    ".html",
+    ".js",
+    ".jsx",
+    ".less",
+    ".mdx",
+    ".mjs",
+    ".sass",
+    ".scss",
+    ".ts",
+    ".tsx",
+}
+
+SUPPORTED_FRONTEND_EXACT_NAMES = {
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "bun.lockb",
+    "jsconfig.json",
+    "tsconfig.json",
+    ".eslintrc",
+    ".eslintrc.json",
+    ".eslintrc.js",
+    ".eslintrc.cjs",
+    ".eslintrc.mjs",
+    ".prettierrc",
+    ".prettierrc.json",
+    ".prettierrc.js",
+    ".prettierrc.cjs",
+    ".prettierrc.mjs",
+    ".babelrc",
+    ".babelrc.json",
+    ".babelrc.js",
+    ".babelrc.cjs",
+}
+
+SUPPORTED_FRONTEND_PREFIXES = (
+    "next.config.",
+    "tailwind.config.",
+    "postcss.config.",
+    "vite.config.",
+    "webpack.config.",
+    "eslint.config.",
+)
 
 
 SOURCE_RULE_POINTS = {
@@ -428,7 +478,7 @@ def scan_public_github_repo(repo_url: str) -> dict[str, Any]:
         for entry in file_entries
     ]
     _emit_source_scan_progress(
-        f"Fetched {len(files)} repo files for scanning; skipped {len(skipped_entries)} oversized binary/media blobs."
+        f"Fetched {len(files)} supported frontend files for scanning; skipped {len(skipped_entries)} non-frontend or oversized files."
     )
     findings = _evaluate_source_rules(files)
     # source_raw_score is weighted by confidence
@@ -1250,12 +1300,18 @@ def _evaluate_source_rules(files: list[SourceFile]) -> list[SourceFinding]:
 
 def _parse_github_repo(repo_url: str) -> tuple[str, str]:
     parsed = urllib.parse.urlparse(repo_url.strip())
+    if parsed.scheme.lower() != "https":
+        raise ValueError("GitHub repo URL must use https:// and point to a repository root like https://github.com/owner/repo.")
     if parsed.netloc.lower() not in {"github.com", "www.github.com"}:
         raise ValueError("Repo URL must be a public github.com URL.")
     parts = [part for part in parsed.path.strip("/").split("/") if part]
-    if len(parts) < 2:
-        raise ValueError("GitHub repo URL must include owner and repo.")
-    return parts[0], parts[1].removesuffix(".git")
+    if len(parts) != 2:
+        raise ValueError("GitHub repo URL must point to the repository root like https://github.com/owner/repo.")
+    owner = parts[0].strip()
+    repo = parts[1].removesuffix(".git").strip()
+    if not owner or not repo:
+        raise ValueError("GitHub repo URL must include a valid owner and repo name.")
+    return owner, repo
 
 
 def _fetch_default_branch(owner: str, repo: str) -> str:
@@ -1272,10 +1328,22 @@ def _select_repo_files_for_scan(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     file_entries: list[dict[str, Any]] = []
     skipped_entries: list[dict[str, Any]] = []
+    supported_frontend_source_entries = 0
     for item in entries:
         if item.get("type") != "blob":
             continue
         path = str(item.get("path", ""))
+        if not _is_supported_frontend_path(path):
+            skipped_entries.append(
+                {
+                    "path": path,
+                    "size_bytes": item.get("size"),
+                    "reason": "unsupported frontend language or file type",
+                }
+            )
+            continue
+        if _is_supported_frontend_source_path(path):
+            supported_frontend_source_entries += 1
         size_bytes = _entry_size_bytes(owner, repo, item)
         if not _should_fetch_path(path, size_bytes=size_bytes):
             skipped_entries.append(
@@ -1287,6 +1355,16 @@ def _select_repo_files_for_scan(
             )
             continue
         file_entries.append(item)
+    if supported_frontend_source_entries == 0:
+        raise ValueError(
+            "No supported frontend source files were found in this repository. Humanonn source scanning currently "
+            "supports frontend source files such as JavaScript, TypeScript, JSX/TSX, CSS, HTML, and MDX, plus common "
+            "frontend config files when those source files are present."
+        )
+    if not file_entries:
+        raise ValueError(
+            "Supported frontend files were found, but all of them were skipped because they exceeded the source scan size limits."
+        )
     return file_entries, skipped_entries
 
 
@@ -1338,6 +1416,24 @@ def _looks_like_binary_or_media_path(path: str) -> bool:
     return any(lowered.endswith(extension) for extension in LIKELY_BINARY_OR_MEDIA_EXTENSIONS)
 
 
+def _is_supported_frontend_path(path: str) -> bool:
+    normalized = path.replace("\\", "/").strip().lower()
+    filename = normalized.rsplit("/", 1)[-1]
+    return _is_supported_frontend_source_path(filename) or _is_supported_frontend_config_path(filename)
+
+
+def _is_supported_frontend_source_path(path: str) -> bool:
+    filename = path.replace("\\", "/").strip().lower().rsplit("/", 1)[-1]
+    return Path(filename).suffix in SUPPORTED_FRONTEND_EXTENSIONS
+
+
+def _is_supported_frontend_config_path(path: str) -> bool:
+    filename = path.replace("\\", "/").strip().lower().rsplit("/", 1)[-1]
+    if filename in SUPPORTED_FRONTEND_EXACT_NAMES:
+        return True
+    return any(filename.startswith(prefix) for prefix in SUPPORTED_FRONTEND_PREFIXES)
+
+
 def _raw_github_file_url(owner: str, repo: str, default_branch: str, path: str) -> str:
     encoded_path = "/".join(urllib.parse.quote(part) for part in path.split("/"))
     return f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{encoded_path}"
@@ -1385,13 +1481,42 @@ def _is_next_config(path: str) -> bool:
 
 
 def _fetch_json(url: str) -> dict[str, Any]:
-    return json.loads(_fetch_text(url))
+    try:
+        return json.loads(_fetch_text(url))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"GitHub response from {url} was not valid JSON.") from exc
 
 
 def _fetch_text(url: str) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": "humanonn-source-scanner"})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return response.read().decode("utf-8", errors="replace")
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        raise ValueError(_github_http_error_message(url, exc)) from exc
+    except urllib.error.URLError as exc:
+        reason = getattr(exc, "reason", None)
+        if reason:
+            raise ValueError(f"GitHub fetch failed for {url}: {reason}") from exc
+        raise ValueError(f"GitHub fetch failed for {url}.") from exc
+
+
+def _github_http_error_message(url: str, exc: urllib.error.HTTPError) -> str:
+    parsed = urllib.parse.urlparse(url)
+    path = parsed.path.lower()
+    if exc.code == 404:
+        if path.startswith("/repos/") and "/git/" not in path:
+            return "GitHub repository not found or the owner/username is incorrect."
+        if "/git/trees/" in path:
+            return "GitHub repository branch or file tree was not found."
+        if "/git/blobs/" in path or "raw.githubusercontent.com" in parsed.netloc:
+            return "A GitHub source file could not be fetched."
+        return "GitHub resource not found."
+    if exc.code == 403:
+        return "GitHub API request was forbidden or the rate limit was reached."
+    if exc.code == 401:
+        return "GitHub API authentication failed."
+    return f"GitHub request failed with HTTP {exc.code}."
 
 
 def _matches_by_file(files: list[SourceFile], pattern: re.Pattern[str]) -> list[dict[str, Any]]:
