@@ -48,11 +48,6 @@ def _render_live_logs(placeholder, logs: list[str], running: bool) -> None:
       if (logBox) {
         const threshold = 48;
         const storageKey = "humanonn-live-log-autoscroll";
-        # const nearBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < threshold;
-        # const shouldStick = localStorage.getItem(storageKey) !== "paused";
-        # if (shouldStick || nearBottom) {
-        #   logBox.scrollTop = 0;
-        # }
         if (!logBox.dataset.bound) {
           logBox.dataset.bound = "true";
           logBox.addEventListener("scroll", () => {
@@ -60,12 +55,11 @@ def _render_live_logs(placeholder, logs: list[str], running: bool) -> None:
             localStorage.setItem(storageKey, isNearBottom ? "auto" : "paused");
           }, { passive: true });
         }
-          // Auto-scroll to bottom unless user explicitly scrolled up
-            const shouldStick = localStorage.getItem(storageKey) !== "paused";
-            if (shouldStick) {
-                logBox.scrollTop = logBox.scrollHeight;
-            }
-
+                // Auto-scroll to bottom unless the user explicitly scrolled up.
+                const shouldStick = localStorage.getItem(storageKey) !== "paused";
+                if (shouldStick) {
+                    logBox.scrollTop = logBox.scrollHeight;
+                }
       }
     </script>
         """.replace("__BODY__", body)
@@ -96,6 +90,31 @@ def _render_log_window(placeholder, title: str, logs: list[str], empty_running_t
     """.replace("__ID__", title).replace("__BODY__", body)
     with placeholder.container():
         st.html(log_html, unsafe_allow_javascript=True)
+
+
+_SCAN_START_POPUP_MESSAGE = (
+    "Your site is looking awesome, with more interactive elements, animated designs, and richer motion. "
+    "That takes more time to scan perfectly. So start running, keep working while the scan runs in the background, "
+    "and when you come back you will get to know some interesting things about your site. Good luck."
+)
+
+
+def _dismiss_scan_start_popup() -> None:
+    st.session_state["scan_start_popup_visible"] = False
+
+
+if hasattr(st, "dialog"):
+
+    @st.dialog("Scan started")
+    def _render_scan_start_popup() -> None:
+        st.markdown(_SCAN_START_POPUP_MESSAGE)
+
+else:
+
+    def _render_scan_start_popup() -> None:
+        with st.container(border=True):
+            st.markdown("### Scan started")
+            st.markdown(_SCAN_START_POPUP_MESSAGE)
 
 
 def _is_source_scan_log_line(line: str) -> bool:
@@ -182,6 +201,10 @@ def _start_scan(url: str, repo_url: str | None = None) -> None:
     st.session_state["scan_reader_thread"] = reader
     st.session_state["scan_output_path"] = out_json
     st.session_state["scan_command"] = cmd
+
+
+def _open_scan_start_popup() -> None:
+    st.session_state["scan_start_popup_visible"] = True
 
 
 def _stop_scan() -> None:
@@ -316,6 +339,7 @@ def _render_scan_controls() -> None:
     stop_clicked = right.button("Stop scan", disabled=not st.session_state["live_scan_running"])
     if start_clicked:
         _start_scan(url, github_repo_url.strip() or None)
+        _open_scan_start_popup()
         st.rerun()
     if stop_clicked:
         _stop_scan()
@@ -346,14 +370,20 @@ st.session_state.setdefault("scan_report_path", None)
 st.session_state.setdefault("latest_run_summary", None)
 st.session_state.setdefault("scan_mode", "invalid")
 st.session_state.setdefault("source_logs", [])
+st.session_state.setdefault("scan_start_popup_visible", False)
+
+if st.session_state.get("scan_start_popup_visible"):
+    _render_scan_start_popup()
+    st.session_state["scan_start_popup_visible"] = False
+
+if st.session_state["live_scan_running"]:
+    _drain_scan_output()
 
 _render_scan_controls()
 
 download_placeholder = st.empty()
 with st.expander("Show live logs", expanded=False):
     live_log_box = st.empty()
-    if st.session_state["live_scan_running"]:
-        _drain_scan_output()
     live_logs = _live_site_log_lines(st.session_state.get("scan_report_data") or None, st.session_state.get("scan_mode")) + st.session_state["live_logs"]
     _render_live_logs(live_log_box, live_logs, st.session_state["live_scan_running"])
 
