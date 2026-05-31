@@ -11,6 +11,7 @@ from groq import Groq
 
 from humanonn.config import Settings
 from humanonn.model_routing import ModelCandidate, ModelTask, route_for
+from humanonn.llm_cache import compute_cache_key, get_cache, set_cache
 
 
 class ModelRouter:
@@ -32,6 +33,20 @@ class ModelRouter:
                 attempts.append({"bug_tag": candidate.bug_tag, "status": "skipped", "reason": "missing_api_key"})
                 continue
             try:
+                # Conservative cache: only use cached responses when enabled, temperature is low
+                # (deterministic) and there are no images involved.
+                cache_key = None
+                if (
+                    self.settings.llm_cache_enabled
+                    and temperature <= 0.05
+                    and not image_paths
+                ):
+                    cache_key = compute_cache_key(candidate.provider, candidate.model, system_prompt, user_payload, image_paths, temperature)
+                    cached = get_cache(cache_key)
+                    if cached is not None:
+                        attempts.append({"bug_tag": candidate.bug_tag, "status": "ok", "reason": "cache_hit"})
+                        return _coerce_json(cached), candidate, attempts
+
                 if candidate.provider == "groq":
                     result = self._call_groq(candidate, system_prompt, user_payload, temperature)
                 elif candidate.provider == "gemini":
@@ -45,6 +60,14 @@ class ModelRouter:
                 else:
                     attempts.append({"bug_tag": candidate.bug_tag, "status": "skipped", "reason": "provider_not_supported"})
                     continue
+                # store in cache if eligible
+                if cache_key and result is not None:
+                    try:
+                        parsed = _coerce_json(result)
+                        set_cache(cache_key, parsed, ttl_days=self.settings.llm_cache_ttl_days)
+                    except Exception:
+                        # if parsing or caching fails, ignore cache
+                        pass
                 attempts.append({"bug_tag": candidate.bug_tag, "status": "ok", "reason": "success"})
                 return _coerce_json(result), candidate, attempts
             except Exception as exc:

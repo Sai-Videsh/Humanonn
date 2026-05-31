@@ -68,6 +68,9 @@ class Settings:
     smart_global_cap: int = 100
     smart_sample_outside_pct: float = 0.05
     smart_cache_ttl_days: int = 7
+    # LLM cache controls
+    llm_cache_enabled: bool = False
+    llm_cache_ttl_days: int = 7
 
     @property
     def llm_enabled(self) -> bool:
@@ -181,6 +184,8 @@ def load_settings() -> Settings:
         smart_global_cap=int(os.getenv("HUMANONN_SMART_GLOBAL_CAP", "100")),
         smart_sample_outside_pct=float(os.getenv("HUMANONN_SMART_SAMPLE_OUTSIDE_PCT", "0.05")),
         smart_cache_ttl_days=int(os.getenv("HUMANONN_SMART_CACHE_TTL_DAYS", "7")),
+        llm_cache_enabled=os.getenv("HUMANONN_LLM_CACHE_ENABLED", "false").lower() == "true",
+        llm_cache_ttl_days=int(os.getenv("HUMANONN_LLM_CACHE_TTL_DAYS", "7")),
     )
 
 
