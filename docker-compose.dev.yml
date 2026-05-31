@@ -8,5 +8,7 @@ services:
       - "8501:8501"
     volumes:
       - ./:/app:cached
+    env_file:
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
