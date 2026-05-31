@@ -17,6 +17,30 @@ REPORTS_DIR = ROOT / "reports" / "webui"
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _worker_base_url() -> str | None:
+    raw = (os.getenv("HUMANONN_WORKER_URL") or "").strip()
+    if not raw:
+        return None
+    if raw.startswith("http://") or raw.startswith("https://"):
+        return raw.rstrip("/")
+    return f"http://{raw.rstrip('/')}"
+
+
+def _worker_request(method: str, path: str, payload: dict | None = None, timeout: int = 10) -> dict:
+    base = _worker_base_url()
+    if not base:
+        raise RuntimeError("HUMANONN_WORKER_URL is not configured.")
+    body = None
+    headers = {"User-Agent": "Humanonn-UI/1.0"}
+    if payload is not None:
+        body = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    request = urllib.request.Request(f"{base}{path}", data=body, headers=headers, method=method)
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        text = response.read().decode("utf-8", errors="replace")
+    return json.loads(text) if text else {}
+
+
 def _inject_css(path: Path):
     if path.exists():
         css = path.read_text(encoding="utf-8")
@@ -175,6 +199,42 @@ def _start_scan(url: str, repo_url: str | None = None) -> None:
     st.session_state["latest_run_summary"] = None
     st.session_state["scan_mode"] = mode
 
+    if _worker_base_url():
+        try:
+            response = _worker_request(
+                "POST",
+                "/scan",
+                {
+                    "url": url.strip(),
+                    "repo_url": (repo_url.strip() if repo_url else None),
+                },
+                timeout=20,
+            )
+            job_id = str(response.get("job_id") or "").strip()
+            if not job_id:
+                raise RuntimeError("Worker did not return a job id.")
+            st.session_state["scan_remote_job_id"] = job_id
+            st.session_state["scan_process"] = None
+            st.session_state["scan_output_queue"] = None
+            st.session_state["scan_reader_thread"] = None
+            st.session_state["scan_output_path"] = out_json
+            st.session_state["scan_command"] = ["remote-worker", job_id]
+            st.session_state["live_logs"].append(f"Remote worker job started: {job_id}")
+            return
+        except urllib.error.HTTPError as exc:
+            msg = f"Worker request failed with HTTP {exc.code}."
+            try:
+                msg = json.loads(exc.read().decode("utf-8", errors="replace")).get("detail", msg)
+            except Exception:
+                pass
+            st.session_state["live_scan_running"] = False
+            st.session_state["live_logs"].append(f"ERROR: {msg}")
+            return
+        except Exception as exc:
+            st.session_state["live_scan_running"] = False
+            st.session_state["live_logs"].append(f"ERROR: Could not start worker scan: {str(exc).splitlines()[0]}")
+            return
+
     cmd = [sys.executable, "-u", "-m", "humanonn", "scan", "--json", str(out_json)]
     env = os.environ.copy()
     if mode == "source_only":
@@ -211,6 +271,17 @@ def _open_scan_start_popup() -> None:
 
 
 def _stop_scan() -> None:
+    remote_job_id = st.session_state.get("scan_remote_job_id")
+    if remote_job_id:
+        try:
+            _worker_request("POST", f"/scan/{remote_job_id}/cancel", timeout=10)
+        except Exception:
+            pass
+        st.session_state["scan_remote_job_id"] = None
+        st.session_state["scan_stop_requested"] = True
+        st.session_state["live_scan_running"] = False
+        return
+
     process = st.session_state.get("scan_process")
     if not process:
         return
@@ -227,6 +298,37 @@ def _stop_scan() -> None:
 
 
 def _drain_scan_output() -> None:
+    remote_job_id = st.session_state.get("scan_remote_job_id")
+    if remote_job_id:
+        try:
+            state = _worker_request("GET", f"/scan/{remote_job_id}", timeout=10)
+            live_logs = [str(x) for x in state.get("live_logs", []) if x is not None]
+            source_logs = [str(x) for x in state.get("source_logs", []) if x is not None]
+            st.session_state["live_logs"] = live_logs
+            st.session_state["source_logs"] = source_logs
+
+            if state.get("done"):
+                st.session_state["live_scan_running"] = False
+                st.session_state["scan_remote_job_id"] = None
+                report_data = state.get("report") if isinstance(state.get("report"), dict) else None
+                st.session_state["scan_report_data"] = report_data
+                if report_data:
+                    score_block = report_data.get("score") if isinstance(report_data.get("score"), dict) else {}
+                    vibe = report_data.get("vibe_score") or score_block.get("vibe_score") or report_data.get("final_score")
+                    findings = report_data.get("findings") or report_data.get("flagged_issues") or []
+                    st.session_state["latest_run_summary"] = f"{report_data.get('url', '')} — {len(findings)} findings — vibe: {vibe}"
+                elif state.get("error"):
+                    st.session_state["live_logs"].append(f"ERROR: {state.get('error')}")
+                st.session_state["scan_output_queue"] = None
+                st.session_state["scan_reader_thread"] = None
+                st.session_state["scan_process"] = None
+            return
+        except Exception as exc:
+            st.session_state["live_logs"].append(f"ERROR: Worker polling failed: {str(exc).splitlines()[0]}")
+            st.session_state["live_scan_running"] = False
+            st.session_state["scan_remote_job_id"] = None
+            return
+
     output_queue = st.session_state.get("scan_output_queue")
     if not output_queue:
         return
@@ -553,6 +655,7 @@ st.session_state.setdefault("latest_run_summary", None)
 st.session_state.setdefault("scan_mode", "invalid")
 st.session_state.setdefault("source_logs", [])
 st.session_state.setdefault("scan_start_popup_visible", False)
+st.session_state.setdefault("scan_remote_job_id", None)
 
 if st.session_state.get("scan_start_popup_visible"):
     _render_scan_start_popup()

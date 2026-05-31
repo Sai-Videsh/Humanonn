@@ -1,7 +1,8 @@
 services:
   - type: web
-    name: humanonn
+    name: humanonn-ui
     env: docker
+    dockerCommand: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port ${PORT:-8501}
     autoDeploy: true
     healthCheckPath: /
     plan: starter
@@ -10,3 +11,22 @@ services:
         value: "true"
       - key: HUMANONN_PROMPT_PATH
         value: /app/prompts/agent_system.md
+      - key: HUMANONN_WORKER_URL
+        fromService:
+          type: pserv
+          name: humanonn-worker
+          property: hostport
+
+  - type: pserv
+    name: humanonn-worker
+    env: docker
+    dockerCommand: uvicorn humanonn.worker_service:app --host 0.0.0.0 --port ${PORT:-10000}
+    autoDeploy: true
+    plan: starter
+    envVars:
+      - key: HUMANONN_PRODUCTION
+        value: "true"
+      - key: HUMANONN_PROMPT_PATH
+        value: /app/prompts/agent_system.md
+      - key: HUMANONN_MAX_CONCURRENT_SCANS
+        value: "1"

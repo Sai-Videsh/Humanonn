@@ -3,7 +3,8 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PLAYWRIGHT_BROWSERS_PATH=0
+    PLAYWRIGHT_BROWSERS_PATH=0 \
+    APP_ROLE=ui
 
 WORKDIR /app
 
@@ -51,5 +52,6 @@ RUN python -m pip install --upgrade pip \
     && python -m playwright install chromium
 
 EXPOSE 8501
+EXPOSE 10000
 
-CMD ["sh", "-c", "streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port ${PORT:-8501}"]
+CMD ["sh", "-c", "if [ \"$APP_ROLE\" = \"worker\" ]; then uvicorn humanonn.worker_service:app --host 0.0.0.0 --port ${PORT:-10000}; else streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port ${PORT:-8501}; fi"]

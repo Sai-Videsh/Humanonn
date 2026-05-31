@@ -1,2 +1,3 @@
 [console_scripts]
 humanonn = humanonn.cli:main
+humanonn-check-models = humanonn.model_checker:main

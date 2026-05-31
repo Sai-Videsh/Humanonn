@@ -4,9 +4,13 @@ Version: 0.1.0
 Summary: CLI-first website quality auditor for vibe-coded design patterns.
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.115.0
 Requires-Dist: groq>=0.9.0
 Requires-Dist: playwright>=1.44.0
 Requires-Dist: pydantic>=2.7.0
+Requires-Dist: streamlit>=1.36.0
+Requires-Dist: uvicorn>=0.30.0
+Requires-Dist: watchdog>=2.1.0
 
 # Humanonn
 
@@ -49,6 +53,8 @@ Save JSON:
 ```bash
 python -m humanonn scan https://example.com --json reports/example.json
 ```
+
+Source-code scoring is available for public frontend GitHub repos only. Use `--repo-url` for Next.js, React, or Tailwind projects; Humanonn scans frontend files only and folds that normalized source score into the final 100-point score alongside the live site scan.
 
 ## Project Stages
 

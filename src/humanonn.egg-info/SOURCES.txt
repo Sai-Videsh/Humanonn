@@ -5,7 +5,9 @@ src/humanonn/__main__.py
 src/humanonn/agent.py
 src/humanonn/cli.py
 src/humanonn/config.py
+src/humanonn/llm_cache.py
 src/humanonn/llm_clients.py
+src/humanonn/model_checker.py
 src/humanonn/model_routing.py
 src/humanonn/models.py
 src/humanonn/rules.py
@@ -13,6 +15,8 @@ src/humanonn/runtime.py
 src/humanonn/scoring.py
 src/humanonn/signals.py
 src/humanonn/smart_scoring.py
+src/humanonn/source_code.py
+src/humanonn/worker_service.py
 src/humanonn.egg-info/PKG-INFO
 src/humanonn.egg-info/SOURCES.txt
 src/humanonn.egg-info/dependency_links.txt
@@ -26,4 +30,7 @@ src/humanonn/tools/__init__.py
 src/humanonn/tools/browser.py
 src/humanonn/tools/registry.py
 src/humanonn/tools/schemas.py
+tests/test_browser_component_discovery.py
 tests/test_scoring.py
+tests/test_source_code_scan.py
+tests/test_synthetic_merge.py
