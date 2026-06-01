@@ -13,15 +13,16 @@ services:
         value: /app/prompts/agent_system.md
       - key: HUMANONN_WORKER_URL
         fromService:
-          type: pserv
+          type: web
           name: humanonn-worker
           property: hostport
 
-  - type: pserv
+  - type: web
     name: humanonn-worker
     env: docker
     dockerCommand: uvicorn humanonn.worker_service:app --host 0.0.0.0 --port ${PORT:-10000}
     autoDeploy: true
+    healthCheckPath: /healthz
     plan: starter
     envVars:
       - key: HUMANONN_PRODUCTION
