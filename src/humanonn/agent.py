@@ -41,8 +41,14 @@ class HumanonnAgent:
             try:
                 report = self._scan_with_fallback_orchestrator(url)
             except Exception as exc:
-                report = self._scan_deterministic(url)
-                report.agent_notes.append(f"Main orchestrator fallback chain failed; used deterministic fallback: {exc}")
+                if os.getenv("HUMANONN_PRODUCTION", "false").lower() == "true" and self.registry.snapshot is not None:
+                    report = self.registry.report or self.registry.generate_report()
+                    report.agent_notes.append(
+                        f"Main orchestrator failed after crawl; reused existing snapshot without recrawling: {exc}"
+                    )
+                else:
+                    report = self._scan_deterministic(url)
+                    report.agent_notes.append(f"Main orchestrator fallback chain failed; used deterministic fallback: {exc}")
         else:
             report = self._scan_deterministic(url)
             if self.settings.force_no_llm:
