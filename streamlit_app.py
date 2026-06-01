@@ -26,6 +26,16 @@ def _worker_base_url() -> str | None:
     return f"http://{raw.rstrip('/')}"
 
 
+def _is_production() -> bool:
+    return (os.getenv("HUMANONN_PRODUCTION") or "false").strip().lower() == "true"
+
+
+def _worker_timeout_seconds(default_timeout: int) -> int:
+    if _is_production():
+        return max(default_timeout, 30)
+    return default_timeout
+
+
 def _worker_request(method: str, path: str, payload: dict | None = None, timeout: int = 10) -> dict:
     base = _worker_base_url()
     if not base:
@@ -36,9 +46,24 @@ def _worker_request(method: str, path: str, payload: dict | None = None, timeout
         body = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
     request = urllib.request.Request(f"{base}{path}", data=body, headers=headers, method=method)
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        text = response.read().decode("utf-8", errors="replace")
-    return json.loads(text) if text else {}
+
+    attempts = 3 if _is_production() else 1
+    last_error: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(request, timeout=_worker_timeout_seconds(timeout)) as response:
+                text = response.read().decode("utf-8", errors="replace")
+            return json.loads(text) if text else {}
+        except urllib.error.URLError as exc:
+            last_error = exc
+            timeout_error = isinstance(getattr(exc, "reason", None), TimeoutError) or "timed out" in str(exc).lower()
+            if not _is_production() or not timeout_error or attempt + 1 >= attempts:
+                raise
+            time.sleep(1.0)
+
+    if last_error:
+        raise last_error
+    raise RuntimeError("Worker request failed.")
 
 
 def _inject_css(path: Path):
