@@ -144,6 +144,60 @@ def _render_log_window(placeholder, title: str, logs: list[str], empty_running_t
         st.html(log_html, unsafe_allow_javascript=True)
 
 
+def _render_inline_lines(lines: list[str]) -> str:
+    rendered_lines: list[str] = []
+    for line in lines:
+        text = str(line).strip()
+        if not text:
+            continue
+        lower = text.lower()
+        is_error = lower.startswith("error:") or "forbidden" in lower or "rate limit" in lower or "failed" in lower
+        color = "#ff3333" if is_error else "#e7e9ee"
+        rendered_lines.append(f"<div style='color:{color}; margin-top:6px;'>{html.escape(text)}</div>")
+    return "<div style='margin-top:6px;'>" + "".join(rendered_lines) + "</div>"
+
+
+def _should_hide_github_rate_limit_message(text: str) -> bool:
+    lowered = text.lower()
+    return "github api request was forbidden or the rate limit was reached" in lowered or (
+        "github" in lowered and ("rate limit" in lowered or "forbidden" in lowered)
+    )
+
+
+def _render_audit_summary_block(report_data: dict | None) -> None:
+    if not report_data:
+        st.write("No audit summary available yet.")
+        return
+
+    score_block = report_data.get("score") if isinstance(report_data.get("score"), dict) else {}
+    category = score_block.get("category") or report_data.get("category") or "Human Built"
+    vibe = report_data.get("vibe_score") or score_block.get("vibe_score") or report_data.get("final_score")
+    rendered_vibe = score_block.get("rendered_vibe_score")
+    source_code_score = score_block.get("source_code_score", 0)
+    humanness = report_data.get("humanness_score") or score_block.get("humanness_score")
+    base = report_data.get("base_score") or score_block.get("base_score") or report_data.get("score_base")
+    cluster = report_data.get("cluster_bonus") or score_block.get("cluster_bonus") or report_data.get("cluster")
+    score_mode = score_block.get("score_mode") or report_data.get("score_mode") or "—"
+    report_url = report_data.get("url") or "—"
+    report_title = report_data.get("title") or "(untitled)"
+
+    st.markdown("### Humanonn Audit")
+    st.markdown(f"**URL:** {report_url}")
+    st.markdown(f"**Title:** {report_title}")
+    st.markdown(f"**Category:** {category}")
+    st.markdown(f"**Merged Vibe Score:** {vibe if vibe is not None else '—'}/100")
+    st.markdown(f"**Source Code Score:** {source_code_score}/100")
+    st.markdown(f"**Humanness Score:** {humanness if humanness is not None else '—'}/100")
+    st.markdown(f"**Base Score:** {base if base is not None else '—'}")
+    st.markdown(f"**Cluster Bonus:** {cluster if cluster is not None else '—'}")
+    st.markdown(f"**Score Mode:** {score_mode}")
+    if score_mode == "source_only":
+        st.markdown("**Rendered Vibe Score:** —/100")
+        st.markdown("**Source-only mode:** live site scraping is disabled; score is driven by source-code findings.")
+    elif rendered_vibe is not None or source_code_score:
+        st.markdown(f"**Rendered Vibe Score:** {rendered_vibe if rendered_vibe is not None else vibe}/100")
+
+
 _SCAN_START_POPUP_MESSAGE = (
     "Your site is looking awesome, with more interactive elements, animated designs, and richer motion. "
     "That takes more time to scan perfectly. So start running, keep working while the scan runs in the background, "
@@ -365,12 +419,15 @@ def _drain_scan_output() -> None:
             break
         if kind == "line":
             line = str(payload)
-            if _is_source_scan_log_line(line):
+            if st.session_state.get("scan_mode") == "source_only" or _is_source_scan_log_line(line):
                 st.session_state.setdefault("source_logs", []).append(line)
             else:
                 st.session_state["live_logs"].append(line)
         elif kind == "error":
-            st.session_state["live_logs"].append(f"ERROR: {payload}")
+            if st.session_state.get("scan_mode") == "source_only":
+                st.session_state.setdefault("source_logs", []).append(f"ERROR: {payload}")
+            else:
+                st.session_state["live_logs"].append(f"ERROR: {payload}")
             finished = True
         elif kind == "done":
             finished = True
@@ -405,6 +462,7 @@ def _source_code_log_lines(report_data: dict | None, running: bool = False) -> l
         return session_logs
     if not report_data:
         return session_logs
+
     if isinstance(report_data.get("scan_code_log"), list) and report_data.get("scan_code_log"):
         return [str(line) for line in report_data.get("scan_code_log", [])]
     source_code = report_data.get("source_code") if isinstance(report_data.get("source_code"), dict) else {}
@@ -437,8 +495,6 @@ def _source_code_log_lines(report_data: dict | None, running: bool = False) -> l
 
 def _live_site_log_lines(report_data: dict | None, scan_mode: str | None = None) -> list[str]:
     if not report_data:
-        if scan_mode == "source_only":
-            return ["No live link was provided, so live scoring is not included."]
         return []
     if isinstance(report_data.get("scan_live_log"), list) and report_data.get("scan_live_log"):
         return [str(line) for line in report_data.get("scan_live_log", [])]
@@ -448,7 +504,6 @@ def _live_site_log_lines(report_data: dict | None, scan_mode: str | None = None)
     rendered = score_block.get("rendered_vibe_score")
     lines: list[str] = []
     if scan_mode == "source_only" or report_mode == "source_only":
-        lines.append("No live link was provided, so live scoring is not included.")
         return lines
     if rendered is not None:
         lines.append(f"Live site score: {rendered}/100")
@@ -546,8 +601,7 @@ if site_errors:
         compact.append(s)
         if len(compact) >= 5:
             break
-    html_block = "".join(f"<div>{html.escape(c)}</div>" for c in compact)
-    st.markdown(f"<div style='color:#ff3333; margin-top:6px;'>{html_block}</div>", unsafe_allow_html=True)
+    st.markdown(_render_inline_lines(compact), unsafe_allow_html=True)
 github_repo_url = st.text_input(
     "Public GitHub repo URL for source-code scoring (Optional)",
     "",
@@ -570,7 +624,7 @@ def _validate_github_repo_input(url: str) -> str | None:
 # Validate the GitHub repo input and show an inline red error message if invalid.
 _github_input_error = _validate_github_repo_input(github_repo_url)
 if _github_input_error:
-    st.markdown(f"<div style='color: #ff3333; margin-top: 6px;'>**Error:** {_github_input_error}</div>", unsafe_allow_html=True)
+    st.markdown(_render_inline_lines([f"Error: {_github_input_error}" ]), unsafe_allow_html=True)
 else:
     # quick existence check so 'repo not found' shows fast
     def _quick_repo_check(url: str) -> str | None:
@@ -604,8 +658,8 @@ else:
                 return _github_http_error_message(api_url, exc)
             if exc.code == 404:
                 return "GitHub repository not found or the owner/username is incorrect."
-            if exc.code == 403:
-                return "GitHub API request was forbidden or rate limited."
+            # if exc.code == 403:
+            #     return "GitHub API request was forbidden or rate limited."
             return f"GitHub request failed with HTTP {exc.code}."
         except Exception as exc:
             return f"Could not verify GitHub repo: {str(exc).splitlines()[0]}"
@@ -615,8 +669,8 @@ else:
         _repo_check_error = _quick_repo_check(github_repo_url)
     except Exception:
         _repo_check_error = None
-    if _repo_check_error:
-        st.markdown(f"<div style='color: #ff3333; margin-top: 6px;'>**Error:** {_repo_check_error}</div>", unsafe_allow_html=True)
+    if _repo_check_error and not _should_hide_github_rate_limit_message(_repo_check_error):
+        st.markdown(_render_inline_lines([f"Error: {_repo_check_error}" ]), unsafe_allow_html=True)
 # Display server-side scan errors (if any) and the merged final score below the GitHub input.
 report_data = st.session_state.get("scan_report_data")
 server_errors: list[str] = []
@@ -624,10 +678,10 @@ server_errors: list[str] = []
 # 1) Collect errors already present in the finished report data
 if report_data:
     if isinstance(report_data.get("scan_code_log"), list):
-        server_errors.extend([str(x) for x in report_data.get("scan_code_log", []) if x])
+        server_errors.extend([str(x) for x in report_data.get("scan_code_log", []) if x and not _should_hide_github_rate_limit_message(str(x))])
     source_code = report_data.get("source_code") if isinstance(report_data.get("source_code"), dict) else {}
     if isinstance(source_code.get("scan_log"), list):
-        server_errors.extend([str(x) for x in source_code.get("scan_log", []) if x])
+        server_errors.extend([str(x) for x in source_code.get("scan_log", []) if x and not _should_hide_github_rate_limit_message(str(x))])
     if isinstance(report_data.get("agent_notes"), list):
         server_errors.extend([str(x) for x in report_data.get("agent_notes", []) if x])
     for key in ("error", "scan_error", "scan_status"):
@@ -641,6 +695,8 @@ inline_logs = []
 inline_logs.extend([str(x) for x in st.session_state.get("source_logs", []) or []])
 inline_logs.extend([str(x) for x in st.session_state.get("live_logs", []) or []])
 for line in inline_logs:
+    if _should_hide_github_rate_limit_message(line):
+        continue
     if err_pattern.search(line) or "no supported frontend" in line.lower() or "repository not found" in line.lower():
         server_errors.append(line)
 
@@ -656,8 +712,7 @@ if server_errors:
         compact.append(s)
         if len(compact) >= 10:
             break
-    html_block = "".join(f"<div>{c}</div>" for c in compact)
-    st.markdown(f"<div style='color:#ff3333; margin-top:6px;'>{html_block}</div>", unsafe_allow_html=True)
+    st.markdown(_render_inline_lines(compact), unsafe_allow_html=True)
 
 # Render merged final score (vibe/final_score) in green, plain value only
 merged_score = None
@@ -732,6 +787,17 @@ def _flagged_findings(report_data: dict) -> list[dict]:
     return normalized
 
 
+def _combined_flagged_findings(report_data: dict) -> list[dict]:
+    combined = _flagged_findings(report_data)
+    source_code = report_data.get("source_code") if isinstance(report_data.get("source_code"), dict) else {}
+    source_findings = source_code.get("findings") if isinstance(source_code.get("findings"), list) else []
+    for item in source_findings:
+        if not isinstance(item, dict) or not item.get("flagged"):
+            continue
+        combined.append(item)
+    return combined
+
+
 def _format_finding_cli_block(finding: dict) -> str:
     tier = finding.get("tier", "?")
     name = finding.get("name") or finding.get("title") or "Unnamed finding"
@@ -784,7 +850,7 @@ with left_col:
     if st.session_state["live_scan_running"]:
         st.write("Scan running. Metrics and findings will reappear after the current site finishes.")
     elif report_data:
-        flagged_findings = _flagged_findings(report_data)
+        flagged_findings = _combined_flagged_findings(report_data)
         with st.expander(f"Flagged Issues ({len(flagged_findings)})", expanded=True):
             if flagged_findings:
                 for f in flagged_findings:
@@ -822,10 +888,10 @@ with right_col:
         if score_mode == "source_only":
             st.markdown("**Live Site Score:** —/100")
             st.markdown("**Source-only mode:** live site scraping is disabled; score is driven by source-code findings.")
-            st.markdown(f"**Source Code Score:** +{source_code_score}")
+            st.markdown(f"**Source Code Score:** {source_code_score}/100")
         elif rendered_vibe is not None or source_code_score:
             st.markdown(f"**Live Site Score:** {rendered_vibe if rendered_vibe is not None else vibe}/100")
-            st.markdown(f"**Source Code Score:** +{source_code_score}")
+            st.markdown(f"**Source Code Score:** {source_code_score}/100")
         st.markdown(f"**Humanness Score:** {humanness if humanness is not None else '—'}/100")
         st.markdown(f"**Base Score:** {base if base is not None else '—'}")
         st.markdown(f"**Cluster Bonus:** {cluster if cluster is not None else '—'}")
@@ -873,6 +939,8 @@ with right_col:
         source_code = report_data.get("source_code") if isinstance(report_data.get("source_code"), dict) else {}
         with st.expander("Source Code Findings", expanded=bool(source_code)):
             if source_code:
+                _render_audit_summary_block(report_data)
+                st.markdown("---")
                 st.markdown(f"**Repo:** {source_code.get('repo_url', '—')}")
                 st.markdown(f"**Files Scanned:** {source_code.get('files_scanned', 0)}")
                 st.markdown(f"**Source Code Score:** +{source_code.get('source_code_score', 0)}")
@@ -905,7 +973,9 @@ with right_col:
         st.write("No metrics available — run a scan to populate report metrics.")
 
 st.markdown("---")
-st.write("Server notes: Ensure `.venv` is activated and dependencies installed. Use `python -m playwright install chromium` if needed.")
+if not st.session_state.get("server_notes_footer_shown"):
+    st.caption("Server notes: Ensure `.venv` is activated and dependencies installed. Use `python -m playwright install chromium` if needed.")
+    st.session_state["server_notes_footer_shown"] = True
 
 if st.session_state["live_scan_running"]:
     time.sleep(1)

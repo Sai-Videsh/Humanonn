@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import base64
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -276,14 +277,22 @@ def apply_source_code_score(
 
     source_tier_counts = source_report.get("tier_counts") if isinstance(source_report.get("tier_counts"), dict) else {}
 
-    # Unified raw pool merge
-    combined_raw = live_raw_score + source_score
-    MAX_COMBINED = MAX_RAW_SCORE + SOURCE_SCORE_CAP
-    if MAX_COMBINED <= 0:
-        final_vibe_score = 0
+    # If only one source is present (live or source), prefer that source's final score
+    if live_raw_score <= 0:
+        # Only source data available — use normalized source score as final
+        final_vibe_score = normalized_source_score
+    elif source_score <= 0:
+        # Only live data available — use the rendered/live vibe score
+        final_vibe_score = int(rendered_vibe_score) if rendered_vibe_score is not None else report.score.vibe_score
     else:
-        final_vibe_score = round((combined_raw / MAX_COMBINED) * 100)
-        final_vibe_score = max(0, min(100, final_vibe_score))
+        # Unified raw pool merge
+        combined_raw = live_raw_score + source_score
+        MAX_COMBINED = MAX_RAW_SCORE + SOURCE_SCORE_CAP
+        if MAX_COMBINED <= 0:
+            final_vibe_score = 0
+        else:
+            final_vibe_score = round((combined_raw / MAX_COMBINED) * 100)
+            final_vibe_score = max(0, min(100, final_vibe_score))
 
     # Keep trace fields as before
     report.score.rendered_vibe_score = rendered_vibe_score
@@ -474,11 +483,11 @@ def scan_public_github_repo(repo_url: str) -> dict[str, Any]:
         f"Fetched repo file structure from GitHub ({len(fetched_paths)} files):\n{fetched_structure}"
     )
     files = [
-        SourceFile(path=entry["path"], content=_fetch_text(_raw_github_file_url(owner, repo, default_branch, entry["path"])))
+        SourceFile(path=entry["path"], content=_fetch_github_file_content(owner, repo, default_branch, entry["path"]))
         for entry in file_entries
     ]
     _emit_source_scan_progress(
-        f"Fetched {len(files)} supported frontend files for scanning; skipped {len(skipped_entries)} non-frontend or oversized files."
+        f"Fetched {len(files)} supported frontend files for scanning via GitHub API; skipped {len(skipped_entries)} non-frontend or oversized files."
     )
     findings = _evaluate_source_rules(files)
     # source_raw_score is weighted by confidence
@@ -1439,6 +1448,29 @@ def _raw_github_file_url(owner: str, repo: str, default_branch: str, path: str) 
     return f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{encoded_path}"
 
 
+def _fetch_github_file_content(owner: str, repo: str, default_branch: str, path: str) -> str:
+    encoded_path = "/".join(urllib.parse.quote(part) for part in path.split("/"))
+    url = f"https://api.github.com/repos/{owner}/{repo}/contents/{encoded_path}?ref={urllib.parse.quote(default_branch)}"
+    payload = _fetch_json(url)
+    if not isinstance(payload, dict):
+        raise ValueError("GitHub file response was not a JSON object.")
+
+    encoding = str(payload.get("encoding") or "").lower()
+    content = payload.get("content")
+    if encoding == "base64" and isinstance(content, str):
+        cleaned = content.replace("\n", "").strip()
+        return base64.b64decode(cleaned).decode("utf-8", errors="replace")
+
+    if isinstance(content, str):
+        return content
+
+    download_url = payload.get("download_url")
+    if isinstance(download_url, str) and download_url:
+        return _fetch_text(download_url)
+
+    raise ValueError(f"GitHub source file could not be fetched for {path}.")
+
+
 def _format_repo_file_structure(paths: list[str]) -> str:
     cleaned_paths = sorted({path.replace("\\", "/").strip("/") for path in paths if path})
     if not cleaned_paths:
@@ -1488,7 +1520,18 @@ def _fetch_json(url: str) -> dict[str, Any]:
 
 
 def _fetch_text(url: str) -> str:
-    request = urllib.request.Request(url, headers={"User-Agent": "humanonn-source-scanner"})
+    # include Authorization header whenever a token is configured
+    headers = {"User-Agent": "humanonn-source-scanner"}
+    try:
+        from humanonn.config import load_settings
+
+        _settings = load_settings()
+        if _settings.github_token:
+            headers["Authorization"] = f"token {_settings.github_token}"
+    except Exception:
+        # fail gracefully and continue without auth header
+        pass
+    request = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             return response.read().decode("utf-8", errors="replace")

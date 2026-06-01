@@ -71,6 +71,8 @@ class Settings:
     # LLM cache controls
     llm_cache_enabled: bool = False
     llm_cache_ttl_days: int = 7
+    github_token: str | None = None
+    production: bool = False
 
     @property
     def llm_enabled(self) -> bool:
@@ -186,6 +188,8 @@ def load_settings() -> Settings:
         smart_cache_ttl_days=int(os.getenv("HUMANONN_SMART_CACHE_TTL_DAYS", "7")),
         llm_cache_enabled=os.getenv("HUMANONN_LLM_CACHE_ENABLED", "false").lower() == "true",
         llm_cache_ttl_days=int(os.getenv("HUMANONN_LLM_CACHE_TTL_DAYS", "7")),
+        github_token=os.getenv("GITHUB_TOKEN"),
+        production=os.getenv("HUMANONN_PRODUCTION", "false").lower() == "true",
     )
 
 

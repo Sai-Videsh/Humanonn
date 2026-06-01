@@ -31,11 +31,14 @@ def _scan_mode(url: str, repo_url: str | None) -> str:
 def _is_source_scan_log_line(line: str) -> bool:
     prefixes = (
         "Starting source-code scan",
+        "Live site scraping disabled by HUMANONN_LIVE_SITE_SCRAPING=false; using source-code scoring only.",
+        "No GitHub repo URL was provided, so source-code scoring could not run.",
         "Fetched ",
         "Checked source rule ",
         "Computed raw source code score ",
         "Added normalized source code score ",
         "Boosted DOM confidence to 1.0 from source-code agreement:",
+        "Applied ATS source review via ",
     )
     return line.startswith(prefixes)
 
@@ -100,13 +103,16 @@ def _drain_job_output(job: ScanJob) -> None:
             break
         if kind == "line":
             line = str(payload)
-            if _is_source_scan_log_line(line):
+            if job.mode == "source_only" or _is_source_scan_log_line(line):
                 job.source_logs.append(line)
             else:
                 job.live_logs.append(line)
         elif kind == "error":
             job.error = str(payload)
-            job.live_logs.append(f"ERROR: {payload}")
+            if job.mode == "source_only":
+                job.source_logs.append(f"ERROR: {payload}")
+            else:
+                job.live_logs.append(f"ERROR: {payload}")
             job.done = True
         elif kind == "done":
             job.return_code = int(payload)

@@ -96,7 +96,7 @@ def _write_text_log(path: Path, lines: list[str]) -> None:
 
 def _extract_live_log_lines(log_path: Path, scan_mode: str | None) -> list[str]:
     if scan_mode == "source_only":
-        return ["No live link was provided, so live scoring is not included."]
+        return []
 
     if not log_path.exists():
         return []

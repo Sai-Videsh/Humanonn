@@ -19,8 +19,6 @@ def format_console_report(report: AuditReport, show_all: bool = False) -> str:
         f"Base Score: {report.score.base_score}",
         f"Cluster Bonus: {report.score.cluster_bonus}",
         f"Score Mode: {report.score.score_mode}",
-        f"Flagged Signals: {len(flagged)}/{len(report.findings)}",
-        f"Screenshot: {report.screenshot_path or '(not captured)'}",
     ]
     if report.score.score_mode == "source_only":
         lines.insert(6, "Rendered Vibe Score: —/100")
@@ -30,15 +28,19 @@ def format_console_report(report: AuditReport, show_all: bool = False) -> str:
             6,
             f"Rendered Vibe Score: {report.score.rendered_vibe_score if report.score.rendered_vibe_score is not None else report.score.vibe_score}/100",
         )
-    if report.scan_metadata:
-        lines.extend(
-            [
-                f"Verified Components: {report.scan_metadata.get('verified_components', 0)}",
-                f"Style-Verified Components: {report.scan_metadata.get('style_verified_components', 0)}",
-                f"Unverified Components: {report.scan_metadata.get('unverified_components', 0)}",
-                f"Interaction Coverage: {report.scan_metadata.get('interaction_coverage_ratio', 0)}",
-            ]
-        )
+    # For source-only scans, avoid printing live-only fields like flagged counts, screenshot, and component metadata
+    if report.score.score_mode != "source_only":
+        lines.append(f"Flagged Signals: {len(flagged)}/{len(report.findings)}")
+        lines.append(f"Screenshot: {report.screenshot_path or '(not captured)'}")
+        if report.scan_metadata:
+            lines.extend(
+                [
+                    f"Verified Components: {report.scan_metadata.get('verified_components', 0)}",
+                    f"Style-Verified Components: {report.scan_metadata.get('style_verified_components', 0)}",
+                    f"Unverified Components: {report.scan_metadata.get('unverified_components', 0)}",
+                    f"Interaction Coverage: {report.scan_metadata.get('interaction_coverage_ratio', 0)}",
+                ]
+            )
     lines.extend(
         [
             "",
