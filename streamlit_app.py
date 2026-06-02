@@ -1,4 +1,4 @@
-import json
+﻿import json
 import html
 import streamlit as st
 import threading
@@ -520,85 +520,15 @@ def _render_scan_controls() -> None:
         "live_only": "Start live scan",
         "source_only": "Start source scan",
     }.get(mode, "Start scan")
-
-    # Normal start/stop buttons (disabled when running or invalid)
     start_clicked = left.button(start_label, disabled=st.session_state["live_scan_running"] or mode == "invalid")
     stop_clicked = right.button("Stop scan", disabled=not st.session_state["live_scan_running"])
-
-    # If a user clicked start, perform repo→site mismatch detection only at this moment
     if start_clicked:
-        # If a repo is provided and mode requires it, attempt to detect mismatch.
-        repo = github_repo_url.strip() or None
-        if repo and mode in ("combined", "source_only"):
-            try:
-                mismatch = _detect_repo_site_mismatch(url, repo)
-            except Exception:
-                mismatch = {"status": "unknown", "reason": "error while checking repo metadata"}
-
-            if mismatch:
-                # Save pending start parameters and mismatch details, then show confirmation UI.
-                st.session_state["pending_start"] = {"url": url, "repo_url": repo}
-                st.session_state["repo_site_mismatch"] = mismatch
-                st.session_state["repo_mismatch_shown_at"] = int(time.time())
-                st.rerun()
-
-        # No mismatch (or no repo) — proceed to start immediately
-        _start_scan(url, repo)
+        _start_scan(url, github_repo_url.strip() or None)
         _open_scan_start_popup()
         st.rerun()
-
     if stop_clicked:
         _stop_scan()
         st.rerun()
-
-    # If a mismatch confirmation is pending, render a clear confirmation UI.
-    mismatch = st.session_state.get("repo_site_mismatch")
-    pending = st.session_state.get("pending_start")
-    if mismatch and pending:
-        with st.container():
-            # Friendly, explicit warning explaining the mismatch and options
-            site_domain = mismatch.get("site_domain") or _extract_domain(pending.get("url"))
-            repo_home = mismatch.get("repo_homepage") or "(no homepage declared)"
-            repo_desc = mismatch.get("repo_description") or "(no description)"
-            if mismatch.get("status") == "mismatch":
-                st.warning(
-                    "The provided GitHub repository appears to declare a different homepage than the site you entered.\n\n"
-                    f"Site: {site_domain}\nRepo homepage: {repo_home}\n\n"
-                    "If you proceed, the scan will use the provided repo for source-code findings even though it may belong to a different project."
-                )
-            else:
-                st.info(
-                    "Could not match the repository metadata to the live site given.\n\n"
-                    "You can retry the check or confirm to proceed anyway."
-                )
-
-            cols = st.columns([1, 1, 1])
-            with cols[0]:
-                confirm = st.button("Confirm and start scan")
-            with cols[1]:
-                retry = st.button("Retry check")
-            with cols[2]:
-                cancel = st.button("Cancel")
-
-            if confirm:
-                params = st.session_state.pop("pending_start", None) or {"url": url, "repo_url": github_repo_url.strip() or None}
-                # clear mismatch info
-                st.session_state.pop("repo_site_mismatch", None)
-                st.session_state.pop("repo_mismatch_shown_at", None)
-                _start_scan(params.get("url"), params.get("repo_url"))
-                _open_scan_start_popup()
-                st.rerun()
-
-            if retry:
-                # remove previous mismatch and re-trigger start flow so detection runs again
-                st.session_state.pop("repo_site_mismatch", None)
-                st.rerun()
-
-            if cancel:
-                st.session_state.pop("repo_site_mismatch", None)
-                st.session_state.pop("pending_start", None)
-                st.session_state.pop("repo_mismatch_shown_at", None)
-                st.rerun()
 
 
 st.title("Humanonn: Make your site feel more human")
@@ -689,86 +619,6 @@ def _validate_github_repo_input(url: str) -> str | None:
     pattern = re.compile(r"^https://(?:www\.)?github\.com/[^/\s]+/[^/\s]+(?:\.git)?/?$")
     if not pattern.match(u):
         return "Invalid GitHub repo URL — expected: https://github.com/owner/repo"
-    return None
-
-
-def _parse_github_repo(url: str) -> tuple[str, str] | None:
-    try:
-        parsed = urllib.parse.urlparse(url.strip())
-        parts = [p for p in parsed.path.split("/") if p]
-        if len(parts) < 2:
-            return None
-        owner, repo = parts[0], parts[1].removesuffix(".git")
-        return owner, repo
-    except Exception:
-        return None
-
-
-def _extract_domain(u: str | None) -> str | None:
-    if not u:
-        return None
-    try:
-        p = urllib.parse.urlparse(u)
-        host = (p.netloc or "").lower()
-        # strip common www
-        if host.startswith("www."):
-            host = host[4:]
-        return host
-    except Exception:
-        return None
-
-
-def _get_github_repo_metadata(owner: str, repo: str, timeout: int = 6) -> dict | None:
-    api_url = f"https://api.github.com/repos/{owner}/{repo}"
-    try:
-        req = urllib.request.Request(api_url, headers={"User-Agent": "Humanonn/1.0"})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            if resp.status == 200:
-                text = resp.read().decode("utf-8", errors="replace")
-                return json.loads(text)
-    except Exception:
-        return None
-    return None
-
-
-def _detect_repo_site_mismatch(site_url: str, repo_url: str) -> dict | None:
-    """Return a mismatch dict if the repo metadata suggests a different site domain.
-    Non-destructive: returns None when no clear mismatch or metadata unavailable.
-    """
-    if not site_url or not repo_url:
-        return None
-    parsed = _parse_github_repo(repo_url)
-    if not parsed:
-        return None
-    owner, repo = parsed
-    meta = _get_github_repo_metadata(owner, repo)
-    if not meta:
-        # Can't verify repo metadata (rate-limit or network) — don't block, but return a caution signal
-        return {"status": "unknown", "reason": "could not fetch repo metadata (rate-limited or network)"}
-
-    site_domain = _extract_domain(site_url)
-    homepage = (meta.get("homepage") or "") if isinstance(meta.get("homepage"), str) else ""
-    description = (meta.get("description") or "") if isinstance(meta.get("description"), str) else ""
-    homepage_domain = _extract_domain(homepage)
-
-    # If repo declares a homepage that clearly differs from the provided site, flag mismatch.
-    if homepage_domain and site_domain and homepage_domain != site_domain:
-        return {
-            "status": "mismatch",
-            "reason": "repo homepage differs from provided site",
-            "repo_homepage": homepage,
-            "repo_description": description,
-            "site_domain": site_domain,
-            "repo_homepage_domain": homepage_domain,
-            "owner": owner,
-            "repo": repo,
-        }
-
-    # If description contains an explicit site domain, check that too.
-    if description and site_domain and site_domain not in description.lower():
-        # not a strong signal, only return None — prefer homepage check as authoritative
-        return None
-
     return None
 
 # Validate the GitHub repo input and show an inline red error message if invalid.

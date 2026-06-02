@@ -1,0 +1,46 @@
+{
+  "url": "https://www.lovable.dev/",
+  "title": "Lovable",
+  "score": {
+    "vibe_score": 76,
+    "humanness_score": 24,
+    "base_score": 62.32,
+    "cluster_bonus": 0,
+    "tier_counts": {},
+    "category": "Vibe Coded With Human Polish",
+    "score_mode": "cached_artifact",
+    "llm_adjustment": 0.0,
+    "rendered_vibe_score": 76,
+    "source_code_score": 0
+  },
+  "screenshot_path": "D:\\Humanonn\\reports\\data\\159c6852d800\\main.png",
+  "scan_metadata": {
+    "section_count": 2,
+    "component_count": 11,
+    "verified_components": 11,
+    "style_verified_components": 1,
+    "synthetic_components": 0,
+    "unverified_components": 0,
+    "interaction_coverage_ratio": 1.0,
+    "artifact_coverage_ratio": 0.0909,
+    "scan_mode": "live_only"
+  },
+  "agent_notes": [
+    "Preset report reconstructed from D:\\Humanonn\\reports\\data\\159c6852d800.",
+    "Artifact replay includes 2 sections and 11 components."
+  ],
+  "smart_summary": null,
+  "archetype_label": null,
+  "dynamic_findings": [],
+  "llm_evidence": {},
+  "source_code": {},
+  "scan_live_log": [
+    "Artifact root: D:\\Humanonn\\reports\\data\\159c6852d800",
+    "Sections discovered: 2",
+    "Components discovered: 11",
+    "Verified components: 11",
+    "Style-verified components: 1",
+    "Unverified components: 0",
+    "Sample sections: section_001_applications-open-soon-shebuilds-is-back, section_002_shebuilds-season-03"
+  ]
+}
