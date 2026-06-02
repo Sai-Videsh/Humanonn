@@ -1,4 +1,4 @@
-﻿import json
+import json
 import html
 import streamlit as st
 import threading
@@ -916,7 +916,16 @@ with right_col:
         screenshot_path = report_data.get("screenshot_path")
         screenshot_file = _resolve_screenshot_path(screenshot_path)
         st.markdown("**Screenshot:**")
-        if screenshot_file:
+        remote_job_id = st.session_state.get("scan_remote_job_id") or report_data.get("scan_metadata", {}).get("job_id") or report_data.get("job_id")
+        worker_base = _worker_base_url()
+        
+        if worker_base and remote_job_id:
+            screenshot_url = f"{worker_base}/scan/{remote_job_id}/screenshot"
+            st.image(screenshot_url, width='stretch')
+            # Render a download link/button for the full ZIP bundle
+            bundle_url = f"{worker_base}/scan/{remote_job_id}/artifacts"
+            st.markdown(f"**Artifacts:** [Download scan artifacts (ZIP)]({bundle_url})")
+        elif screenshot_file:
             st.image(str(screenshot_file), width='stretch')
         else:
             st.write("Screenshot not found.")

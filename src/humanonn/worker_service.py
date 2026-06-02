@@ -12,8 +12,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
+
+from humanonn.persistence import HumanonnPersistence
+persistence = HumanonnPersistence.from_env()
 
 
 def _scan_mode(url: str, repo_url: str | None) -> str:
@@ -77,6 +80,9 @@ class ScanJob:
     return_code: int | None = None
     error: str | None = None
     report: dict[str, Any] | None = None
+    screenshot_bytes: bytes | None = None
+    artifact_bundle_bytes: bytes | None = None
+    manifest_json: dict[str, Any] | None = None
 
 
 REPORTS_DIR = Path(os.getenv("HUMANONN_WORKER_REPORTS_DIR", "/tmp/humanonn-worker-reports"))
@@ -178,6 +184,50 @@ def _start_job(url: str, repo_url: str | None) -> ScanJob:
     return job
 
 
+def _background_jobs_monitor() -> None:
+    while True:
+        try:
+            time.sleep(2)
+            with _LOCK:
+                active_job_ids = list(_JOBS.keys())
+                for job_id in active_job_ids:
+                    job = _JOBS[job_id]
+                    _drain_job_output(job)
+
+                    if job.done:
+                        if persistence.enabled:
+                            try:
+                                persistence.sync_artifacts(job)
+                                persistence.upsert_job(job)
+                            except Exception as e:
+                                print(f"Failed to sync artifacts for completed job {job_id}: {e}", file=sys.stderr)
+                        # Remove completed jobs from active memory dict
+                        _JOBS.pop(job_id, None)
+                    else:
+                        if persistence.enabled:
+                            try:
+                                persistence.upsert_job(job)
+                            except Exception as e:
+                                print(f"Failed to update running job logs in DB: {e}", file=sys.stderr)
+        except Exception as exc:
+            print(f"Error in background jobs monitor: {exc}", file=sys.stderr)
+
+
+@app.on_event("startup")
+def startup_event():
+    if persistence.enabled:
+        try:
+            persistence.ensure_schema()
+            persistence.job_store.cleanup_stuck_jobs()
+            print("Postgres database schema checked and stuck jobs cleaned up.", file=sys.stderr)
+        except Exception as e:
+            print(f"Failed to initialize database: {e}", file=sys.stderr)
+
+    monitor_thread = threading.Thread(target=_background_jobs_monitor, daemon=True)
+    monitor_thread.start()
+    print("Background jobs monitor thread started.", file=sys.stderr)
+
+
 @app.get("/")
 def root() -> dict[str, str]:
     return {"service": "humanonn-worker", "status": "ok"}
@@ -195,6 +245,11 @@ def create_scan(request: ScanRequest) -> dict[str, Any]:
             raise HTTPException(status_code=429, detail="Worker is busy. Try again in a moment.")
         job = _start_job(request.url, request.repo_url)
         _JOBS[job.job_id] = job
+        if persistence.enabled:
+            try:
+                persistence.upsert_job(job)
+            except Exception as e:
+                print(f"Failed to save job initialization to database: {e}", file=sys.stderr)
     return {"job_id": job.job_id, "mode": job.mode, "status": "running"}
 
 
@@ -202,6 +257,24 @@ def create_scan(request: ScanRequest) -> dict[str, Any]:
 def get_scan(job_id: str) -> dict[str, Any]:
     job = _JOBS.get(job_id)
     if not job:
+        if persistence.enabled:
+            try:
+                db_job = persistence.load_job(job_id)
+                if db_job:
+                    return {
+                        "job_id": db_job.get("job_id"),
+                        "mode": db_job.get("mode"),
+                        "done": db_job.get("status") in ("done", "failed"),
+                        "return_code": db_job.get("return_code"),
+                        "error": db_job.get("error"),
+                        "live_logs": db_job.get("live_logs"),
+                        "source_logs": db_job.get("source_logs"),
+                        "report": db_job.get("report"),
+                        "site_json": db_job.get("site_json"),
+                        "manifest_json": db_job.get("manifest_json"),
+                    }
+            except Exception as e:
+                print(f"Failed to load job from database: {e}", file=sys.stderr)
         raise HTTPException(status_code=404, detail="Scan job not found.")
 
     with _LOCK:
@@ -215,27 +288,109 @@ def get_scan(job_id: str) -> dict[str, Any]:
             "live_logs": job.live_logs,
             "source_logs": job.source_logs,
             "report": job.report,
+            "site_json": job.report,
+            "manifest_json": job.manifest_json,
         }
 
 
 @app.post("/scan/{job_id}/cancel")
 def cancel_scan(job_id: str) -> dict[str, Any]:
     job = _JOBS.get(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Scan job not found.")
-
-    with _LOCK:
-        if not job.done and job.process and job.process.poll() is None:
-            try:
-                job.process.terminate()
+    if job:
+        with _LOCK:
+            if not job.done and job.process and job.process.poll() is None:
                 try:
-                    job.process.wait(timeout=5)
-                except Exception:
-                    job.process.kill()
-            finally:
-                job.done = True
-                job.return_code = job.process.poll()
-                job.error = job.error or "Scan cancelled by user."
-        _drain_job_output(job)
+                    job.process.terminate()
+                    try:
+                        job.process.wait(timeout=5)
+                    except Exception:
+                        job.process.kill()
+                finally:
+                    job.done = True
+                    job.return_code = job.process.poll()
+                    job.error = job.error or "Scan cancelled by user."
+            _drain_job_output(job)
+            if persistence.enabled:
+                try:
+                    persistence.sync_artifacts(job)
+                    persistence.upsert_job(job)
+                except Exception as e:
+                    print(f"Failed to upsert cancelled job: {e}", file=sys.stderr)
+        return {"job_id": job.job_id, "done": job.done, "status": "cancelled"}
 
-    return {"job_id": job.job_id, "done": job.done, "status": "cancelled"}
+    if persistence.enabled:
+        try:
+            db_job = persistence.load_job(job_id)
+            if db_job:
+                status = db_job.get("status")
+                if status in ("running", "queued"):
+                    sql = f"""
+                    UPDATE {persistence.job_store.TABLE_NAME}
+                    SET status = 'failed',
+                        error = 'Scan cancelled by user.',
+                        done_at = NOW(),
+                        updated_at = NOW()
+                    WHERE job_id = %s
+                    """
+                    with persistence.job_store._connect() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute(sql, (job_id,))
+                        conn.commit()
+                return {"job_id": job_id, "done": True, "status": "cancelled"}
+        except Exception as e:
+            print(f"Failed to cancel db job: {e}", file=sys.stderr)
+
+    raise HTTPException(status_code=404, detail="Scan job not found.")
+
+
+@app.get("/scan/{job_id}/screenshot")
+def get_job_screenshot(job_id: str):
+    job = _JOBS.get(job_id)
+    screenshot_bytes = None
+    if job:
+        screenshot_bytes = getattr(job, "screenshot_bytes", None)
+        if not screenshot_bytes and job.done and job.report:
+            screenshot_path = persistence._resolve_path(job.report.get("screenshot_path"))
+            if screenshot_path and screenshot_path.exists():
+                try:
+                    screenshot_bytes = screenshot_path.read_bytes()
+                except Exception:
+                    pass
+
+    if not screenshot_bytes and persistence.enabled:
+        try:
+            db_job = persistence.job_store.load(job_id)
+            if db_job:
+                screenshot_bytes = db_job.get("screenshot_bytes")
+        except Exception:
+            pass
+
+    if not screenshot_bytes:
+        raise HTTPException(status_code=404, detail="Screenshot not found.")
+
+    return Response(content=screenshot_bytes, media_type="image/png")
+
+
+@app.get("/scan/{job_id}/artifacts")
+def get_job_artifacts(job_id: str):
+    job = _JOBS.get(job_id)
+    bundle_bytes = None
+    if job:
+        bundle_bytes = getattr(job, "artifact_bundle_bytes", None)
+
+    if not bundle_bytes and persistence.enabled:
+        try:
+            db_job = persistence.job_store.load(job_id)
+            if db_job:
+                bundle_bytes = db_job.get("artifact_bundle_bytes")
+        except Exception:
+            pass
+
+    if not bundle_bytes:
+        raise HTTPException(status_code=404, detail="Artifact bundle not found.")
+
+    return Response(
+        content=bundle_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=artifacts_{job_id}.zip"}
+    )
