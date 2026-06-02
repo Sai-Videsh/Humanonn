@@ -21,7 +21,20 @@ class ToolRegistry:
 
     def execute(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if name == "crawl_page":
-            self.snapshot = crawl_page(arguments["url"], self.settings)
+            target_url = arguments["url"]
+            if self.snapshot is not None:
+                def normalize_url(u: str) -> str:
+                    u = u.strip().lower()
+                    if u.endswith("/"):
+                        u = u[:-1]
+                    return u
+                if normalize_url(self.snapshot.url) == normalize_url(target_url):
+                    terminal_log(
+                        f"Reusing existing crawl snapshot for {target_url} without recrawling.",
+                        self.settings.terminal_logs,
+                    )
+                    return self._snapshot_summary(self.snapshot)
+            self.snapshot = crawl_page(target_url, self.settings)
             return self._snapshot_summary(self.snapshot)
         if self.snapshot is None:
             raise RuntimeError("crawl_page must run before other tools.")

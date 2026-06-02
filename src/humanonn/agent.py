@@ -70,12 +70,13 @@ class HumanonnAgent:
         failures: list[str] = []
         configured = self.settings.primary_candidate("main_orchestrator")
         candidate_chain = self._main_orchestrator_candidates(configured)
+        self.registry = ToolRegistry(self.settings)
         for candidate in candidate_chain:
             if not self.settings.api_keys_for(candidate.provider):
                 failures.append(f"{candidate.bug_tag}: missing_api_key")
                 continue
             try:
-                self.registry = ToolRegistry(self.settings)
+                self.registry.report = None
                 if candidate.provider == "groq":
                     report = self._run_groq_orchestrator(url, candidate)
                 elif candidate.provider == "gemini":
