@@ -43,9 +43,18 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
     try:
         with sync_playwright() as p:
             terminal_log(f"Launching Chromium (headless={settings.headless})", settings.terminal_logs)
+            launch_args = ["--enable-unsafe-swiftshader"]
+            if settings.production:
+                launch_args.extend([
+                    "--disable-dev-shm-usage",
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-gpu",
+                    "--js-flags=--max-old-space-size=256",
+                ])
             browser = p.chromium.launch(
                 headless=settings.headless,
-                args=["--enable-unsafe-swiftshader"],
+                args=launch_args,
             )
             page = browser.new_page(viewport={"width": 1440, "height": 1200})
             page.route("**/*", lambda route, request: _handle_routed_request(route, request))
@@ -463,7 +472,20 @@ def _capture_components(
     manifest: list[dict[str, Any]] = []
     profiles = _build_pass_profiles(settings)
     consecutive_timeouts = 0
+    import os
+    max_components = int(os.getenv("HUMANONN_MAX_COMPONENTS_PER_SECTION", "5")) if settings.production else len(components)
     for index, component in enumerate(components):
+        if index >= max_components:
+            manifest.append(
+                _build_unverified_component_record(
+                    section,
+                    component,
+                    section_dir,
+                    settings,
+                    f"section component limit exceeded (max {max_components})",
+                )
+            )
+            continue
         record, next_timeouts = _capture_component_with_retries(page, section, component, section_dir, settings, profiles, consecutive_timeouts)
         consecutive_timeouts = next_timeouts
         manifest.append(record)

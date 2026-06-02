@@ -1,0 +1,16 @@
+{
+  "id": "comp-7",
+  "index": 7,
+  "kind": "button",
+  "label": "Button 7",
+  "section_id": "section-1",
+  "path": "temp_section_dir\\component_008_button_button-7",
+  "status": "unverified",
+  "verified": false,
+  "attempts": [],
+  "before_image_path": null,
+  "hover_image_path": null,
+  "active_image_path": null,
+  "focus_image_path": null,
+  "unverified_reason": "section component limit exceeded (max 5)"
+}
