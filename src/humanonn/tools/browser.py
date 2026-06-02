@@ -71,8 +71,20 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
 
             page.evaluate("window.scrollTo(0, 0)")
             _settle_page(page, settings, "before-main-screenshot")
-            page.screenshot(path=str(main_image_path), full_page=True)
-            page.screenshot(path=str(screenshot_path), full_page=True)
+            if settings.production:
+                scroll_height = page.evaluate("document.body.scrollHeight || document.documentElement.scrollHeight") or 1200
+                clip_height = min(int(scroll_height), 4000)
+                original_viewport = page.viewport_size or {"width": 1440, "height": 1200}
+                page.set_viewport_size({"width": original_viewport["width"], "height": clip_height})
+                page.screenshot(path=str(main_image_path), full_page=False)
+                page.set_viewport_size(original_viewport)
+            else:
+                page.screenshot(path=str(main_image_path), full_page=True)
+            import shutil
+            try:
+                shutil.copyfile(main_image_path, screenshot_path)
+            except Exception as copy_err:
+                terminal_log(f"Failed to copy screenshot: {copy_err}", settings.terminal_logs)
             terminal_log("Saved main page overview screenshots", settings.terminal_logs)
 
             manifest = _capture_section_artifacts(page, sections, artifact_root, settings)
