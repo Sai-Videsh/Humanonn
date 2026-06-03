@@ -529,6 +529,7 @@ def _render_scan_controls() -> None:
     if stop_clicked:
         _stop_scan()
         st.rerun()
+    st.caption("*Note: Reload the page when scanning a new/different site to completely clear the current session and logs.*")
 
 
 st.title("Humanonn: Make your site feel more human")
@@ -607,7 +608,74 @@ github_repo_url = st.text_input(
     "",
     placeholder="https://github.com/owner/repo",
 )
-st.caption("Note: Source-code scanning currently supports repositories built with Next.js, React, and Tailwind CSS.")
+def _check_site_repo_match(site_url: str, repo_url: str) -> str | None:
+    if not site_url or not repo_url:
+        return None
+    try:
+        parsed_site = urllib.parse.urlparse(site_url.strip())
+        site_host = (parsed_site.hostname or "").lower()
+        if not site_host:
+            return None
+        site_parts = [p for p in site_host.split(".") if p not in ("www", "com", "dev", "net", "org", "co", "in", "io", "app", "pages", "vercel", "netlify", "onrender", "github")]
+        if not site_parts:
+            return None
+
+        parsed_repo = urllib.parse.urlparse(repo_url.strip())
+        path_parts = [p for p in parsed_repo.path.split("/") if p]
+        if len(path_parts) < 2:
+            return None
+        owner = path_parts[0].lower()
+        repo = path_parts[1].lower().removesuffix(".git")
+
+        import re
+        def clean_str(s: str) -> str:
+            return re.sub(r'[^a-z0-9]', '', s.lower())
+
+        site_parts_cleaned = [clean_str(p) for p in site_parts]
+        repo_cleaned = clean_str(repo)
+        owner_cleaned = clean_str(owner)
+
+        matched = False
+        for part in site_parts_cleaned:
+            if not part:
+                continue
+            if part in repo_cleaned or repo_cleaned in part or part in owner_cleaned or owner_cleaned in part:
+                matched = True
+                break
+
+        if matched:
+            return None
+
+        # Try checking package.json homepage field
+        try:
+            package_url = f"https://raw.githubusercontent.com/{path_parts[0]}/{repo}/main/package.json"
+            req = urllib.request.Request(package_url, headers={"User-Agent": "Humanonn/1.0"})
+            homepage = ""
+            try:
+                with urllib.request.urlopen(req, timeout=2) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    homepage = data.get("homepage", "")
+            except urllib.error.HTTPError as he:
+                if he.code == 404:
+                    package_url_master = f"https://raw.githubusercontent.com/{path_parts[0]}/{repo}/master/package.json"
+                    req_master = urllib.request.Request(package_url_master, headers={"User-Agent": "Humanonn/1.0"})
+                    with urllib.request.urlopen(req_master, timeout=2) as resp_master:
+                        data = json.loads(resp_master.read().decode("utf-8"))
+                        homepage = data.get("homepage", "")
+            if homepage:
+                parsed_home = urllib.parse.urlparse(homepage.strip())
+                home_host = (parsed_home.hostname or "").lower()
+                if home_host == site_host or (home_host and home_host.replace("www.", "") == site_host.replace("www.", "")):
+                    return None
+        except Exception:
+            pass
+
+        return f"⚠️ **Warning**: The live site URL (`{site_host}`) does not seem to match the repository name (`{repo}`). If this is intentional, you can proceed with the scan."
+    except Exception:
+        pass
+    return None
+
+
 def _validate_github_repo_input(url: str) -> str | None:
     """Return an error string when the input is clearly not a valid public GitHub repo URL."""
     if not url:
@@ -671,6 +739,10 @@ else:
         _repo_check_error = None
     if _repo_check_error and not _should_hide_github_rate_limit_message(_repo_check_error):
         st.markdown(_render_inline_lines([f"Error: {_repo_check_error}" ]), unsafe_allow_html=True)
+    elif not _github_input_error and not _repo_check_error:
+        match_warning = _check_site_repo_match(url, github_repo_url)
+        if match_warning:
+            st.warning(match_warning)
 # Display server-side scan errors (if any) and the merged final score below the GitHub input.
 report_data = st.session_state.get("scan_report_data")
 server_errors: list[str] = []
