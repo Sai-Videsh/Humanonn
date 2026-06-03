@@ -50,8 +50,9 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
                     "--disable-gpu",
-                    "--js-flags=--max-old-space-size=256",
                 ])
+                if settings.memory_saver:
+                    launch_args.append("--js-flags=--max-old-space-size=256")
             browser = p.chromium.launch(
                 headless=settings.headless,
                 args=launch_args,
@@ -72,7 +73,7 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
 
                 page.evaluate("window.scrollTo(0, 0)")
                 _settle_page(page, settings, "before-main-screenshot")
-                if settings.production:
+                if settings.memory_saver:
                     scroll_height = page.evaluate("document.body.scrollHeight || document.documentElement.scrollHeight") or 1200
                     clip_height = min(int(scroll_height), 4000)
                     original_viewport = page.viewport_size or {"width": 1440, "height": 1200}
@@ -383,7 +384,7 @@ def _capture_section_artifacts(
         try:
             _scroll_locator_into_focus(page, locator, settings)
             section_image = section_dir / "section.png"
-            if not settings.production or section["index"] < 2:
+            if not settings.memory_saver or section["index"] < 2:
                 locator.screenshot(path=str(section_image), timeout=5000)
                 record_image_path = str(section_image)
             else:
@@ -495,7 +496,7 @@ def _capture_components(
     profiles = _build_pass_profiles(settings)
     consecutive_timeouts = 0
     import os
-    max_components = int(os.getenv("HUMANONN_MAX_COMPONENTS_PER_SECTION", "5")) if settings.production else len(components)
+    max_components = int(os.getenv("HUMANONN_MAX_COMPONENTS_PER_SECTION", "5")) if settings.memory_saver else len(components)
     for index, component in enumerate(components):
         if index >= max_components:
             manifest.append(
@@ -569,7 +570,7 @@ def _capture_static_component_style(
     settings: Settings,
 ) -> None:
     before_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
-    if not settings.production:
+    if not settings.memory_saver:
         before_path = component_dir / "before.png"
         locator.screenshot(path=str(before_path), timeout=5000)
         record["before_image_path"] = str(before_path)
@@ -819,7 +820,7 @@ def _capture_component_states(
     use_direct_probe: bool = False,
 ) -> None:
     before_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
-    if not settings.production:
+    if not settings.memory_saver:
         before_path = component_dir / "before.png"
         locator.screenshot(path=str(before_path), timeout=5000)
         record["before_image_path"] = str(before_path)
@@ -856,7 +857,7 @@ def _capture_component_states(
                     f"hover_no_diff: component {component['index'] + 1} '{component['label']}'",
                     settings.terminal_logs,
                 )
-        if not settings.production:
+        if not settings.memory_saver:
             locator.screenshot(path=str(hover_path), timeout=5000)
             record["hover_image_path"] = str(hover_path)
         else:
@@ -876,7 +877,7 @@ def _capture_component_states(
         page.wait_for_timeout(profile["interaction_wait_ms"])
         active_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
         active_diff = _diff_styles(before_style, active_style)
-        if not settings.production:
+        if not settings.memory_saver:
             locator.screenshot(path=str(focus_path), timeout=5000)
             record["focus_image_path"] = str(focus_path)
         else:
@@ -893,7 +894,7 @@ def _capture_component_states(
         page.wait_for_timeout(profile["active_wait_ms"])
         active_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
         active_diff = _diff_styles(before_style, active_style)
-        if not settings.production:
+        if not settings.memory_saver:
             locator.screenshot(path=str(active_path), timeout=5000)
             record["active_image_path"] = str(active_path)
         else:

@@ -73,6 +73,7 @@ class Settings:
     llm_cache_ttl_days: int = 7
     github_token: str | None = None
     production: bool = False
+    memory_saver: bool = False
 
     @property
     def llm_enabled(self) -> bool:
@@ -190,6 +191,7 @@ def load_settings() -> Settings:
         llm_cache_ttl_days=int(os.getenv("HUMANONN_LLM_CACHE_TTL_DAYS", "7")),
         github_token=os.getenv("GITHUB_TOKEN"),
         production=os.getenv("HUMANONN_PRODUCTION", "false").lower() == "true",
+        memory_saver=os.getenv("HUMANONN_MEMORY_SAVER", "false").lower() == "true",
     )
 
 
