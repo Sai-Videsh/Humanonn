@@ -51,7 +51,6 @@ RUN python -m pip install --upgrade pip \
     && pip install . \
     && python -m playwright install chromium
 
-EXPOSE 8501
-EXPOSE 10000
+EXPOSE 7860
 
-CMD ["sh", "-c", "if [ \"$APP_ROLE\" = \"worker\" ]; then uvicorn humanonn.worker_service:app --host 0.0.0.0 --port ${PORT:-10000}; else streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port ${PORT:-8501}; fi"]
+CMD ["sh", "-c", "if [ \"$APP_ROLE\" = \"worker\" ]; then uvicorn humanonn.worker_service:app --host 0.0.0.0 --port ${PORT:-7860}; else streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port ${PORT:-7860}; fi"]
