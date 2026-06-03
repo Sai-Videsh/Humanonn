@@ -228,12 +228,12 @@ def startup_event():
     print("Background jobs monitor thread started.", file=sys.stderr)
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root() -> dict[str, str]:
     return {"service": "humanonn-worker", "status": "ok"}
 
 
-@app.get("/healthz")
+@app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
