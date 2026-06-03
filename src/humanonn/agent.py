@@ -9,7 +9,7 @@ from typing import Any
 
 from groq import Groq
 
-from humanonn.config import Settings
+from humanonn.config import Settings, resolve_prompt_path
 from humanonn.model_routing import ModelCandidate, route_for
 from humanonn.models import AuditReport
 from humanonn.llm_clients import ModelRouter
@@ -19,13 +19,7 @@ from humanonn.tools.registry import ToolRegistry
 from humanonn.tools.schemas import TOOL_DEFINITIONS
 
 
-PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "agent_system.md"
 
-
-def _prompt_path() -> Path:
-    if os.getenv("HUMANONN_PRODUCTION", "false").lower() == "true":
-        return Path(os.getenv("HUMANONN_PROMPT_PATH", "/app/prompts/agent_system.md"))
-    return PROMPT_PATH
 
 
 class HumanonnAgent:
@@ -97,7 +91,7 @@ class HumanonnAgent:
 
     def _run_groq_orchestrator(self, url: str, candidate: ModelCandidate) -> AuditReport:
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": _prompt_path().read_text(encoding="utf-8")},
+            {"role": "system", "content": resolve_prompt_path("agent_system.md").read_text(encoding="utf-8")},
             {"role": "user", "content": f"Audit this deployed website: {url}"},
         ]
         last_error: Exception | None = None
@@ -149,7 +143,7 @@ class HumanonnAgent:
 
     def _run_openrouter_orchestrator(self, url: str, candidate: ModelCandidate) -> AuditReport:
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": _prompt_path().read_text(encoding="utf-8")},
+            {"role": "system", "content": resolve_prompt_path("agent_system.md").read_text(encoding="utf-8")},
             {"role": "user", "content": f"Audit this deployed website: {url}"},
         ]
         last_error: Exception | None = None
@@ -213,7 +207,7 @@ class HumanonnAgent:
         raise last_error
 
     def _run_gemini_orchestrator(self, url: str, candidate: ModelCandidate) -> AuditReport:
-        system_prompt = PROMPT_PATH.read_text(encoding="utf-8")
+        system_prompt = resolve_prompt_path("agent_system.md").read_text(encoding="utf-8")
         contents: list[dict[str, Any]] = [
             {
                 "role": "user",

@@ -12,7 +12,12 @@ from humanonn.scoring import score_findings
 from humanonn.signals import SIGNAL_BY_ID
 
 
-PROMPT_ROOT = Path(__file__).resolve().parents[2] / "prompts"
+class PromptPathResolver:
+    def __truediv__(self, other: str) -> Path:
+        from humanonn.config import resolve_prompt_path
+        return resolve_prompt_path(other)
+
+PROMPT_ROOT = PromptPathResolver()
 
 ARCHETYPES = {
     "vibe_coded": (

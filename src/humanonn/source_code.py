@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from humanonn.config import Settings, load_settings
+from humanonn.config import Settings, load_settings, resolve_prompt_path
 from humanonn.llm_clients import ModelRouter
 from humanonn.model_routing import route_for
 from humanonn.models import AuditReport, ScoreSummary, SignalBucket, SignalFinding, SignalTier
@@ -336,7 +336,7 @@ def _apply_source_ats_review(source_report: dict[str, Any], settings: Settings) 
     if not review_candidates:
         return []
 
-    prompt = (Path(__file__).resolve().parents[2] / "prompts" / "ats_review.md").read_text(encoding="utf-8")
+    prompt = resolve_prompt_path("ats_review.md").read_text(encoding="utf-8")
     payload = {
         "scan_domain": "source_code",
         "repo_url": source_report.get("repo_url"),

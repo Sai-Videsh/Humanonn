@@ -203,3 +203,13 @@ def _load_dotenv(path: str = ".env") -> None:
             continue
         key, value = line.split("=", 1)
         os.environ[key.strip()] = value.strip().strip('"').strip("'")
+
+
+def resolve_prompt_path(filename: str) -> Path:
+    if os.getenv("HUMANONN_PRODUCTION", "false").lower() == "true":
+        env_path = os.getenv("HUMANONN_PROMPT_PATH")
+        if env_path and env_path.endswith(filename):
+            return Path(env_path)
+        return Path(os.getenv("HUMANONN_PROMPT_PATH_ROOT", "/app/prompts")) / filename
+    return Path(__file__).resolve().parents[2] / "prompts" / filename
+
