@@ -13,7 +13,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Remove Binary and Unwanted Files
+      - name: Prepare Clean Files
         run: |
           rm -f test.exe
           find . -name "*.pyc" -delete
@@ -23,9 +23,17 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          # 1. Erase git history on the temporary builder VM
+          rm -rf .git
+
+          # 2. Re-initialize a fresh git repo with no history
+          git init
           git config --global user.email "deploy@github.com"
           git config --global user.name "GitHub Actions"
+          git checkout -b main
+          git add .
+          git commit -m "Clean deploy to Hugging Face"
+
+          # 3. Force push to Hugging Face
           git remote add hf https://videsh24:$HF_TOKEN@huggingface.co/spaces/videsh24/Humanonn
-          git add -A
-          git diff-index --quiet HEAD || git commit -m "Strip binaries for Hugging Face deployment"
-          git push -f hf HEAD:refs/heads/main
+          git push -f hf main
