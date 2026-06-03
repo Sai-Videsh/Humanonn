@@ -1,0 +1,31 @@
+name: Deploy to Hugging Face Spaces
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Remove Binary and Unwanted Files
+        run: |
+          rm -f test.exe
+          find . -name "*.pyc" -delete
+          find . -name "__pycache__" -type d -exec rm -rf {} +
+
+      - name: Push to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config --global user.email "deploy@github.com"
+          git config --global user.name "GitHub Actions"
+          git remote add hf https://videsh24:$HF_TOKEN@huggingface.co/spaces/videsh24/Humanonn
+          git add -A
+          git diff-index --quiet HEAD || git commit -m "Strip binaries for Hugging Face deployment"
+          git push -f hf HEAD:refs/heads/main
