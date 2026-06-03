@@ -59,6 +59,8 @@ class HumanonnAgent:
         elapsed_seconds = elapsed_ms / 1000
         report.agent_notes.append(f"Site scan completed in {elapsed_seconds:.2f}s ({elapsed_ms} ms).")
         terminal_log(f"Site scan completed in {elapsed_seconds:.2f}s ({elapsed_ms} ms) for {url}", self.settings.terminal_logs)
+        import gc
+        gc.collect()
         return report
 
     def _scan_deterministic(self, url: str) -> AuditReport:

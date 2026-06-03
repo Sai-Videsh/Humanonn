@@ -509,8 +509,12 @@ class HumanonnPersistence:
                         for file_path in sorted(artifact_root_path.rglob("*")):
                             if file_path.is_file():
                                 archive.write(file_path, arcname=str(file_path.relative_to(artifact_root_path)))
-                    artifact_bundle_bytes = temp_zip.read_bytes()
-                    setattr(job, "artifact_bundle_bytes", artifact_bundle_bytes)
+                    zip_size = temp_zip.stat().st_size
+                    if zip_size < 25 * 1024 * 1024:
+                        artifact_bundle_bytes = temp_zip.read_bytes()
+                        setattr(job, "artifact_bundle_bytes", artifact_bundle_bytes)
+                    else:
+                        print(f"Artifact bundle size ({zip_size / 1024 / 1024:.2f}MB) exceeds 25MB limit. Skipping DB storage to prevent OOM.", file=sys.stderr)
                 except Exception as e:
                     print(f"Failed to create artifact bundle: {e}", file=sys.stderr)
                 finally:
@@ -531,6 +535,8 @@ class HumanonnPersistence:
         if isinstance(job.report, dict):
             job.report["storage_meta"] = meta
 
+        import gc
+        gc.collect()
         return meta
 
     def _storage_prefix(self, job_id: str) -> str:

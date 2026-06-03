@@ -81,3 +81,58 @@ def test_capture_components_no_cap_in_development():
         assert len(result) == 8
         for r in result:
             assert r["verified"] is True
+
+
+def test_section_screenshot_skipping_in_production():
+    settings = replace(load_settings(), production=True)
+    sections = [
+        {"id": f"sec-{i}", "label": f"Section {i}", "index": i}
+        for i in range(5)
+    ]
+    artifact_root = Path("temp_artifact_root")
+    
+    mock_page = MagicMock()
+    mock_locator = MagicMock()
+    
+    with patch("humanonn.tools.browser._retarget_section_locator", return_value=mock_locator), \
+         patch("humanonn.tools.browser._scroll_locator_into_focus"), \
+         patch("humanonn.tools.browser._discover_components", return_value=[]), \
+         patch("humanonn.tools.browser._build_section_synthetic_component", return_value={"synthetic": True}):
+        
+        from humanonn.tools.browser import _capture_section_artifacts
+        result = _capture_section_artifacts(
+            page=mock_page,
+            sections=sections,
+            artifact_root=artifact_root,
+            settings=settings
+        )
+        
+        # In production, screenshot should be called only for index < 2 (which is 2 times)
+        assert mock_locator.screenshot.call_count == 2
+        
+        # Verify section_image_path is set for the first two and None for the rest
+        assert result["sections"][0]["section_image_path"] is not None
+        assert result["sections"][1]["section_image_path"] is not None
+        assert result["sections"][2]["section_image_path"] is None
+        assert result["sections"][3]["section_image_path"] is None
+
+
+def test_component_screenshot_skipping_in_production():
+    settings = replace(load_settings(), production=True)
+    mock_locator = MagicMock()
+    component_dir = Path("temp_component_dir")
+    record = {}
+    
+    from humanonn.tools.browser import _capture_static_component_style
+    _capture_static_component_style(
+        locator=mock_locator,
+        component={"kind": "card", "label": "Card", "index": 0},
+        component_dir=component_dir,
+        record=record,
+        settings=settings
+    )
+    
+    # In production, element screenshot should not be taken
+    assert mock_locator.screenshot.call_count == 0
+    assert record["before_image_path"] is None
+

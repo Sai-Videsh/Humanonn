@@ -56,96 +56,102 @@ def crawl_page(url: str, settings: Settings) -> AuditSnapshot:
                 headless=settings.headless,
                 args=launch_args,
             )
-            page = browser.new_page(viewport={"width": 1440, "height": 1200})
-            page.route("**/*", lambda route, request: _handle_routed_request(route, request))
-            _attach_page_logs(page, settings)
-
-            terminal_log("Navigating to page with staged readiness checks", settings.terminal_logs)
-            _navigate_page(page, url, settings)
-            _settle_page(page, settings, "post-navigation", wait_ms=3600)
-            _scroll_to_bottom_pass(page, settings)
-            terminal_log(f"Navigation complete: {page.url}", settings.terminal_logs)
-
-            sections = _discover_sections(page, settings)
-            _overview_scroll_sections(page, sections, settings)
-
-            page.evaluate("window.scrollTo(0, 0)")
-            _settle_page(page, settings, "before-main-screenshot")
-            if settings.production:
-                scroll_height = page.evaluate("document.body.scrollHeight || document.documentElement.scrollHeight") or 1200
-                clip_height = min(int(scroll_height), 4000)
-                original_viewport = page.viewport_size or {"width": 1440, "height": 1200}
-                page.set_viewport_size({"width": original_viewport["width"], "height": clip_height})
-                page.screenshot(path=str(main_image_path), full_page=False)
-                page.set_viewport_size(original_viewport)
-            else:
-                page.screenshot(path=str(main_image_path), full_page=True)
-            import shutil
             try:
-                shutil.copyfile(main_image_path, screenshot_path)
-            except Exception as copy_err:
-                terminal_log(f"Failed to copy screenshot: {copy_err}", settings.terminal_logs)
-            terminal_log("Saved main page overview screenshots", settings.terminal_logs)
+                page = browser.new_page(viewport={"width": 1440, "height": 1200})
+                page.route("**/*", lambda route, request: _handle_routed_request(route, request))
+                _attach_page_logs(page, settings)
 
-            manifest = _capture_section_artifacts(page, sections, artifact_root, settings)
-            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-            terminal_log(f"Artifact manifest written to {manifest_path}", settings.terminal_logs)
+                terminal_log("Navigating to page with staged readiness checks", settings.terminal_logs)
+                _navigate_page(page, url, settings)
+                _settle_page(page, settings, "post-navigation", wait_ms=3600)
+                _scroll_to_bottom_pass(page, settings)
+                terminal_log(f"Navigation complete: {page.url}", settings.terminal_logs)
 
-            for section in sections:
-                _retarget_section_locator(page, section)
-            page.evaluate("window.scrollTo(0, 0)")
-            _settle_page(page, settings, "before-snapshot")
-            page.evaluate("document.fonts ? document.fonts.ready : Promise.resolve()")
-            terminal_log("Extracting computed styles, structure, and content snapshot", settings.terminal_logs)
-            data = page.evaluate(_SNAPSHOT_SCRIPT)
-            data.setdefault("raw", {})
-            data["raw"].update(
-                {
-                    "artifact_root": str(artifact_root),
-                    "manifest_path": str(manifest_path),
-                    "main_image_path": str(main_image_path),
-                    "section_artifact_count": len(manifest.get("sections", [])),
-                    "needs_vision_override": bool(manifest.get("needs_vision_override")),
-                    "scan_metadata": _scan_metadata_from_manifest(manifest),
-                }
-            )
-            # If the crawler produced synthetic component artifacts (section-level samples),
-            # merge their computed style samples into the in-memory snapshot so rule
-            # evaluators that operate on `snapshot.sections` can see them.
-            try:
-                synthetic_count = 0
-                for sec in manifest.get("sections", []):
-                    for comp in sec.get("components", []):
-                        if comp.get("synthetic"):
-                            synthetic_count += 1
-                            # Build a snapshot-like section entry from the synthetic record
-                            style = comp.get("before_style", {}) or {}
-                            section_entry = {
-                                "text": comp.get("text", ""),
-                                "className": comp.get("className", "synthetic-section"),
-                                "backdropFilter": style.get("backdropFilter") or style.get("backdropFilter", ""),
-                                "boxShadow": style.get("boxShadow"),
-                                "backgroundImage": style.get("backgroundImage"),
-                                "borderTopWidth": style.get("borderTopWidth"),
-                                "borderBottomWidth": style.get("borderBottomWidth"),
-                                "borderRadius": style.get("borderRadius"),
-                                "width": comp.get("width") or style.get("width") or 0,
-                                "height": comp.get("height") or style.get("height") or 0,
-                                "id": comp.get("id"),
-                                "role": comp.get("section_id", ""),
-                                "looksCard": (style.get("borderRadius") and len(str(style.get("borderRadius")) > 0)) or False,
-                                "hasLink": False,
-                                "paragraphMaxWidth": 0,
-                            }
-                            data.setdefault("sections", []).append(section_entry)
-                if synthetic_count:
-                    terminal_log(f"Merged {synthetic_count} synthetic component(s) into in-memory snapshot.sections", settings.terminal_logs)
-            except Exception:
-                # best-effort: do not fail the crawl if merging synthetic samples fails
-                terminal_log("Failed to merge synthetic artifacts into snapshot; continuing without merge", settings.terminal_logs)
-            _log_snapshot_summary(data, settings)
-            browser.close()
-            terminal_log("Closed Chromium session", settings.terminal_logs)
+                sections = _discover_sections(page, settings)
+                _overview_scroll_sections(page, sections, settings)
+
+                page.evaluate("window.scrollTo(0, 0)")
+                _settle_page(page, settings, "before-main-screenshot")
+                if settings.production:
+                    scroll_height = page.evaluate("document.body.scrollHeight || document.documentElement.scrollHeight") or 1200
+                    clip_height = min(int(scroll_height), 4000)
+                    original_viewport = page.viewport_size or {"width": 1440, "height": 1200}
+                    page.set_viewport_size({"width": original_viewport["width"], "height": clip_height})
+                    page.screenshot(path=str(main_image_path), full_page=False)
+                    page.set_viewport_size(original_viewport)
+                else:
+                    page.screenshot(path=str(main_image_path), full_page=True)
+                import shutil
+                try:
+                    shutil.copyfile(main_image_path, screenshot_path)
+                except Exception as copy_err:
+                    terminal_log(f"Failed to copy screenshot: {copy_err}", settings.terminal_logs)
+                terminal_log("Saved main page overview screenshots", settings.terminal_logs)
+
+                manifest = _capture_section_artifacts(page, sections, artifact_root, settings)
+                manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+                terminal_log(f"Artifact manifest written to {manifest_path}", settings.terminal_logs)
+
+                for section in sections:
+                    _retarget_section_locator(page, section)
+                page.evaluate("window.scrollTo(0, 0)")
+                _settle_page(page, settings, "before-snapshot")
+                page.evaluate("document.fonts ? document.fonts.ready : Promise.resolve()")
+                terminal_log("Extracting computed styles, structure, and content snapshot", settings.terminal_logs)
+                data = page.evaluate(_SNAPSHOT_SCRIPT)
+                data.setdefault("raw", {})
+                data["raw"].update(
+                    {
+                        "artifact_root": str(artifact_root),
+                        "manifest_path": str(manifest_path),
+                        "main_image_path": str(main_image_path),
+                        "section_artifact_count": len(manifest.get("sections", [])),
+                        "needs_vision_override": bool(manifest.get("needs_vision_override")),
+                        "scan_metadata": _scan_metadata_from_manifest(manifest),
+                    }
+                )
+                # If the crawler produced synthetic component artifacts (section-level samples),
+                # merge their computed style samples into the in-memory snapshot so rule
+                # evaluators that operate on `snapshot.sections` can see them.
+                try:
+                    synthetic_count = 0
+                    for sec in manifest.get("sections", []):
+                        for comp in sec.get("components", []):
+                            if comp.get("synthetic"):
+                                synthetic_count += 1
+                                # Build a snapshot-like section entry from the synthetic record
+                                style = comp.get("before_style", {}) or {}
+                                section_entry = {
+                                    "text": comp.get("text", ""),
+                                    "className": comp.get("className", "synthetic-section"),
+                                    "backdropFilter": style.get("backdropFilter") or style.get("backdropFilter", ""),
+                                    "boxShadow": style.get("boxShadow"),
+                                    "backgroundImage": style.get("backgroundImage"),
+                                    "borderTopWidth": style.get("borderTopWidth"),
+                                    "borderBottomWidth": style.get("borderBottomWidth"),
+                                    "borderRadius": style.get("borderRadius"),
+                                    "width": comp.get("width") or style.get("width") or 0,
+                                    "height": comp.get("height") or style.get("height") or 0,
+                                    "id": comp.get("id"),
+                                    "role": comp.get("section_id", ""),
+                                    "looksCard": (style.get("borderRadius") and len(str(style.get("borderRadius")) > 0)) or False,
+                                    "hasLink": False,
+                                    "paragraphMaxWidth": 0,
+                                }
+                                data.setdefault("sections", []).append(section_entry)
+                    if synthetic_count:
+                        terminal_log(f"Merged {synthetic_count} synthetic component(s) into in-memory snapshot.sections", settings.terminal_logs)
+                except Exception:
+                    # best-effort: do not fail the crawl if merging synthetic samples fails
+                    terminal_log("Failed to merge synthetic artifacts into snapshot; continuing without merge", settings.terminal_logs)
+                _log_snapshot_summary(data, settings)
+            finally:
+                if browser:
+                    try:
+                        browser.close()
+                        terminal_log("Closed Chromium session", settings.terminal_logs)
+                    except Exception as close_err:
+                        terminal_log(f"Error closing Chromium browser: {close_err}", settings.terminal_logs)
     except PlaywrightError as exc:
         message = str(exc)
         if "Executable doesn't exist" in message or "playwright install" in message:
@@ -377,7 +383,11 @@ def _capture_section_artifacts(
         try:
             _scroll_locator_into_focus(page, locator, settings)
             section_image = section_dir / "section.png"
-            locator.screenshot(path=str(section_image), timeout=5000)
+            if not settings.production or section["index"] < 2:
+                locator.screenshot(path=str(section_image), timeout=5000)
+                record_image_path = str(section_image)
+            else:
+                record_image_path = None
             terminal_log(
                 f"Capturing section {section['index'] + 1}/{len(sections)}: {section['label']}",
                 settings.terminal_logs,
@@ -399,7 +409,7 @@ def _capture_section_artifacts(
             manifest["sections"].append(
                 {
                     **section,
-                    "section_image_path": str(section_image),
+                    "section_image_path": record_image_path,
                     "components": component_manifest,
                 }
             )
@@ -556,11 +566,15 @@ def _capture_static_component_style(
     component: dict[str, Any],
     component_dir: Path,
     record: dict[str, Any],
+    settings: Settings,
 ) -> None:
     before_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
-    before_path = component_dir / "before.png"
-    locator.screenshot(path=str(before_path), timeout=5000)
-    record["before_image_path"] = str(before_path)
+    if not settings.production:
+        before_path = component_dir / "before.png"
+        locator.screenshot(path=str(before_path), timeout=5000)
+        record["before_image_path"] = str(before_path)
+    else:
+        record["before_image_path"] = None
     record["hover_image_path"] = None
     record["active_image_path"] = None
     record["focus_image_path"] = None
@@ -733,7 +747,7 @@ def _capture_component_with_retries(
                 and component.get("kind") == "card"
                 and not component.get("interactableHint")
             ):
-                _capture_static_component_style(locator, component, component_dir, record)
+                _capture_static_component_style(locator, component, component_dir, record, settings)
                 attempt["status"] = "style_verified"
                 attempt["reason"] = "static card style sample"
                 record["attempts"].append(attempt)
@@ -805,9 +819,12 @@ def _capture_component_states(
     use_direct_probe: bool = False,
 ) -> None:
     before_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
-    before_path = component_dir / "before.png"
-    locator.screenshot(path=str(before_path), timeout=5000)
-    record["before_image_path"] = str(before_path)
+    if not settings.production:
+        before_path = component_dir / "before.png"
+        locator.screenshot(path=str(before_path), timeout=5000)
+        record["before_image_path"] = str(before_path)
+    else:
+        record["before_image_path"] = None
 
     hover_style = before_style
     hover_diff: list[str] = []
@@ -839,8 +856,11 @@ def _capture_component_states(
                     f"hover_no_diff: component {component['index'] + 1} '{component['label']}'",
                     settings.terminal_logs,
                 )
-        locator.screenshot(path=str(hover_path), timeout=5000)
-        record["hover_image_path"] = str(hover_path)
+        if not settings.production:
+            locator.screenshot(path=str(hover_path), timeout=5000)
+            record["hover_image_path"] = str(hover_path)
+        else:
+            record["hover_image_path"] = None
 
     active_style = hover_style
     active_diff: list[str] = []
@@ -856,8 +876,11 @@ def _capture_component_states(
         page.wait_for_timeout(profile["interaction_wait_ms"])
         active_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
         active_diff = _diff_styles(before_style, active_style)
-        locator.screenshot(path=str(focus_path), timeout=5000)
-        record["focus_image_path"] = str(focus_path)
+        if not settings.production:
+            locator.screenshot(path=str(focus_path), timeout=5000)
+            record["focus_image_path"] = str(focus_path)
+        else:
+            record["focus_image_path"] = None
     else:
         active_path = component_dir / "active.png"
         box = locator.bounding_box(timeout=5000)
@@ -870,7 +893,11 @@ def _capture_component_states(
         page.wait_for_timeout(profile["active_wait_ms"])
         active_style = _safe_locator_evaluate(locator, _INTERACTION_STYLE_SCRIPT) or {}
         active_diff = _diff_styles(before_style, active_style)
-        locator.screenshot(path=str(active_path), timeout=5000)
+        if not settings.production:
+            locator.screenshot(path=str(active_path), timeout=5000)
+            record["active_image_path"] = str(active_path)
+        else:
+            record["active_image_path"] = None
         # Release away from the element so probing does not complete a real click/navigation.
         page.mouse.move(max(2, probe_x - min(80, box["width"] / 2 + 20)), max(2, probe_y - min(80, box["height"] / 2 + 20)))
         page.mouse.up()
