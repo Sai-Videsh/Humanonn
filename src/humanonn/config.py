@@ -204,7 +204,9 @@ def _load_dotenv(path: str = ".env") -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        os.environ[key.strip()] = value.strip().strip('"').strip("'")
+        key = key.strip()
+        if key not in os.environ:
+            os.environ[key] = value.strip().strip('"').strip("'")
 
 
 def resolve_prompt_path(filename: str) -> Path:

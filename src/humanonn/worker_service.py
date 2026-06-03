@@ -77,6 +77,7 @@ class ScanJob:
     live_logs: list[str] = field(default_factory=list)
     source_logs: list[str] = field(default_factory=list)
     done: bool = False
+    completed_at: float | None = None
     return_code: int | None = None
     error: str | None = None
     report: dict[str, Any] | None = None
@@ -195,14 +196,17 @@ def _background_jobs_monitor() -> None:
                     _drain_job_output(job)
 
                     if job.done:
+                        if job.completed_at is None:
+                            job.completed_at = time.time()
                         if persistence.enabled:
                             try:
                                 persistence.sync_artifacts(job)
                                 persistence.upsert_job(job)
                             except Exception as e:
                                 print(f"Failed to sync artifacts for completed job {job_id}: {e}", file=sys.stderr)
-                        # Remove completed jobs from active memory dict
-                        _JOBS.pop(job_id, None)
+                        # Remove completed jobs from active memory dict after 15 minutes (900 seconds)
+                        if time.time() - job.completed_at > 900:
+                            _JOBS.pop(job_id, None)
                     else:
                         if persistence.enabled:
                             try:

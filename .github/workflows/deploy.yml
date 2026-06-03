@@ -34,6 +34,13 @@ jobs:
           git add .
           git commit -m "Clean deploy to Hugging Face"
 
-          # 3. Force push to Hugging Face
+          # 3. Add remote
           git remote add hf https://videsh24:$HF_TOKEN@huggingface.co/spaces/videsh24/Humanonn
-          git push -f hf main
+
+          # 4. Attempt push with 3 retries (to bypass rate limits / transient network errors)
+          for i in {1..3}; do
+            git push -f hf main && break || {
+              echo "Push failed (likely rate-limited), retrying in 15 seconds (Attempt $i/3)..."
+              sleep 15
+            }
+          done
