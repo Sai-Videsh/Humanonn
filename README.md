@@ -1,3 +1,13 @@
+---
+title: Humanonn
+emoji: 🔍
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Humanonn
 
 Humanonn is a CLI-first AI agent project that audits deployed websites for design and UX patterns commonly found in AI-generated or "vibe-coded" sites.
