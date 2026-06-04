@@ -1,0 +1,3329 @@
+{
+  "url": "https://narayanaschoolctr.vercel.app/",
+  "title": "Narayana School | Chittoor, Andhra Pradesh",
+  "score": {
+    "vibe_score": 28,
+    "humanness_score": 72,
+    "base_score": 43.75,
+    "cluster_bonus": 10,
+    "tier_counts": {
+      "1": 1,
+      "2": 2,
+      "3": 1,
+      "4": 7
+    },
+    "category": "Slight Dev Effort",
+    "score_mode": "smart_llm",
+    "llm_adjustment": 4.3,
+    "rendered_vibe_score": 18,
+    "source_code_score": 41
+  },
+  "screenshot_path": "reports\\data\\7b86c6582e7d\\main.png",
+  "scan_metadata": {
+    "section_count": 13,
+    "component_count": 59,
+    "verified_components": 58,
+    "style_verified_components": 0,
+    "synthetic_components": 0,
+    "unverified_components": 1,
+    "interaction_coverage_ratio": 0.9831,
+    "artifact_coverage_ratio": 0.9831,
+    "scan_mode": "combined"
+  },
+  "agent_notes": [
+    "Scaled LLM adjustment +5.00 -> +4.30 (sources=4, evidence_multiplier=1.00, headroom_multiplier=0.86).",
+    "Skipped smart summary generation (HUMANONN_SMART_SUMMARY=false).",
+    "Skipped dynamic findings generation (HUMANONN_DYNAMIC_FINDINGS=false).",
+    "MODEL_JSON_GROQ_LLAMA33_70B produced smart scoring with adjustment +4.30.",
+    "Site scan completed in 352.36s (352356 ms).",
+    "Added normalized source code score 41/100 (raw 160.8/396); rendered vibe score 18, final vibe score 28."
+  ],
+  "smart_summary": null,
+  "archetype_label": "vibe_coded",
+  "dynamic_findings": [],
+  "llm_evidence": {
+    "ambiguity": {
+      "candidate": {
+        "provider": "groq",
+        "model": "llama-3.1-8b-instant",
+        "bug_tag": "MODEL_ATS_GROQ_LLAMA31_8B"
+      },
+      "attempts": [
+        {
+          "bug_tag": "MODEL_ATS_GROQ_LLAMA31_8B",
+          "status": "ok",
+          "reason": "success"
+        }
+      ],
+      "result": {
+        "signal_reviews": [
+          {
+            "id": "no_evidence",
+            "flagged": false,
+            "confidence": 0.2,
+            "reason": "no evidence provided",
+            "fix": "n/a"
+          }
+        ]
+      }
+    },
+    "vision": {
+      "candidate": {
+        "provider": "gemini",
+        "model": "gemini-2.5-flash",
+        "bug_tag": "MODEL_VISION_GEMINI25_FLASH"
+      },
+      "attempts": [
+        {
+          "bug_tag": "MODEL_VISION_GEMINI25_FLASH",
+          "status": "ok",
+          "reason": "success"
+        }
+      ],
+      "result": {
+        "signal_confirmations": [
+          {
+            "signal_id": "pill_buttons",
+            "verdict": "confirmed",
+            "visual_evidence": "Buttons like 'APPLY NOW' have significantly rounded corners, appearing pill-shaped."
+          },
+          {
+            "signal_id": "purple_accent",
+            "verdict": "denied",
+            "visual_evidence": "The dominant accent colors are a vibrant blue and an orange/gold, not purple or violet."
+          },
+          {
+            "signal_id": "mesh_gradient",
+            "verdict": "denied",
+            "visual_evidence": "The hero background features a subtle light blue grid pattern, not a mesh gradient or aurora blob."
+          },
+          {
+            "signal_id": "glassmorphism",
+            "verdict": "denied",
+            "visual_evidence": "Cards have solid white backgrounds and soft shadows, with no frosted glass or backdrop blur effect present."
+          },
+          {
+            "signal_id": "bento_grid",
+            "verdict": "confirmed",
+            "visual_evidence": "Sections like 'THE 4CS ROADMAP', 'ACADEMIC PROGRAMMES', and 'TECHNOLOGY & INNOVATION' display content in neatly aligned, distinct card-based grid layouts, characteristic of a bento grid."
+          },
+          {
+            "signal_id": "gradient_text",
+            "verdict": "denied",
+            "visual_evidence": "The main headline 'ASIA'S LARGEST EDUCATIONAL INSTITUTION' and other headings use solid colors, not gradients."
+          },
+          {
+            "signal_id": "floating_badge_above_h1",
+            "verdict": "confirmed",
+            "visual_evidence": "A light blue rectangular badge with 'SINCE 1979' is positioned centrally above the main hero heading."
+          },
+          {
+            "signal_id": "canvas_webgl_hero_background",
+            "verdict": "denied",
+            "visual_evidence": "The hero background is a static, subtle grid pattern, showing no visual signs of being rendered via Canvas/WebGL."
+          },
+          {
+            "signal_id": "canvas_rendered_ui",
+            "verdict": "denied",
+            "visual_evidence": "All visible UI elements appear to be standard HTML/CSS components, with no discernible parts rendered within a canvas layer."
+          },
+          {
+            "signal_id": "dynamic_injected_styles",
+            "verdict": "uncertain",
+            "visual_evidence": "No complex animations or advanced visual effects (gradients, blurs, highly dynamic opacities) are present that would visually necessitate dynamically injected inline styles; standard CSS hovers are observed."
+          }
+        ],
+        "additional_patterns": [
+          {
+            "label": "All headings visually centered",
+            "bucket": "polish",
+            "severity": "low",
+            "reason": "Almost all major section headings across the page are consistently centered."
+          },
+          {
+            "label": "Subtle grid pattern in background",
+            "bucket": "polish",
+            "severity": "low",
+            "reason": "A faint, light blue grid pattern serves as a background texture in the hero and several other sections, adding a modern subtle detail."
+          },
+          {
+            "label": "Monochromatic image overlays",
+            "bucket": "polish",
+            "severity": "low",
+            "reason": "Images in sections such as 'THE VISIONARY DR. PONGURU NARAYANA.' and 'RESULTS THAT SHAPE HISTORY.' feature a distinct blue monochromatic overlay."
+          },
+          {
+            "label": "Large, decorative serif headlines",
+            "bucket": "polish",
+            "severity": "low",
+            "reason": "Main section headings utilize large, elegant serif fonts ('Lora', 'Playfair Display') for a distinguished and prominent visual style."
+          }
+        ],
+        "score_hint": {
+          "direction": "up",
+          "magnitude": 3
+        }
+      },
+      "signal_overrides": [
+        {
+          "id": "pill_buttons",
+          "bucket": "origin",
+          "flagged": true,
+          "confidence": 1.0,
+          "source": "vision",
+          "reason": "Buttons like 'APPLY NOW' have significantly rounded corners, appearing pill-shaped.",
+          "fix": "Reduce button radius to a deliberate component radius."
+        },
+        {
+          "id": "purple_accent",
+          "bucket": "origin",
+          "flagged": false,
+          "confidence": 0.0,
+          "source": "vision",
+          "reason": "The dominant accent colors are a vibrant blue and an orange/gold, not purple or violet.",
+          "fix": "Use a brand-specific accent palette instead of default violet."
+        },
+        {
+          "id": "mesh_gradient",
+          "bucket": "origin",
+          "flagged": false,
+          "confidence": 0.0,
+          "source": "vision",
+          "reason": "The hero background features a subtle light blue grid pattern, not a mesh gradient or aurora blob.",
+          "fix": "Replace generic aurora treatment with brand-specific art direction."
+        },
+        {
+          "id": "glassmorphism",
+          "bucket": "origin",
+          "flagged": false,
+          "confidence": 0.0,
+          "source": "vision",
+          "reason": "Cards have solid white backgrounds and soft shadows, with no frosted glass or backdrop blur effect present.",
+          "fix": "Use solid surfaces or apply glass sparingly with clear hierarchy."
+        },
+        {
+          "id": "bento_grid",
+          "bucket": "origin",
+          "flagged": true,
+          "confidence": 1.0,
+          "source": "vision",
+          "reason": "Sections like 'THE 4CS ROADMAP', 'ACADEMIC PROGRAMMES', and 'TECHNOLOGY & INNOVATION' display content in neatly aligned, distinct card-based grid layouts, characteristic of a bento grid.",
+          "fix": "Break the grid rhythm with content-led layout variation."
+        },
+        {
+          "id": "gradient_text",
+          "bucket": "origin",
+          "flagged": false,
+          "confidence": 0.0,
+          "source": "vision",
+          "reason": "The main headline 'ASIA'S LARGEST EDUCATIONAL INSTITUTION' and other headings use solid colors, not gradients.",
+          "fix": "Use plain display type or a more restrained brand treatment."
+        },
+        {
+          "id": "beta_badge",
+          "bucket": "origin",
+          "flagged": true,
+          "confidence": 1.0,
+          "source": "vision",
+          "reason": "A light blue rectangular badge with 'SINCE 1979' is positioned centrally above the main hero heading.",
+          "fix": "Use context-specific launch/status copy or remove the badge."
+        },
+        {
+          "id": "canvas_webgl_hero_background",
+          "bucket": "origin",
+          "flagged": false,
+          "confidence": 0.0,
+          "source": "vision",
+          "reason": "The hero background is a static, subtle grid pattern, showing no visual signs of being rendered via Canvas/WebGL.",
+          "fix": "Use a CSS background or intentionally document the canvas/WebGL treatment."
+        },
+        {
+          "id": "canvas_rendered_ui",
+          "bucket": "origin",
+          "flagged": false,
+          "confidence": 0.0,
+          "source": "vision",
+          "reason": "All visible UI elements appear to be standard HTML/CSS components, with no discernible parts rendered within a canvas layer.",
+          "fix": "Render interactive UI with DOM elements instead of placing it inside a canvas layer."
+        },
+        {
+          "id": "dynamic_injected_styles",
+          "bucket": "origin",
+          "flagged": false,
+          "confidence": 0.5,
+          "source": "vision",
+          "reason": "No complex animations or advanced visual effects (gradients, blurs, highly dynamic opacities) are present that would visually necessitate dynamically injected inline styles; standard CSS hovers are observed.",
+          "fix": "Move repeated gradients, blur, or opacity decisions into stable CSS or document the runtime injection."
+        },
+        {
+          "id": "all_centered_headings",
+          "bucket": "origin",
+          "flagged": true,
+          "confidence": 0.5,
+          "source": "vision_additional_pattern",
+          "reason": "Almost all major section headings across the page are consistently centered.",
+          "fix": "Mix left-aligned and centered sections based on content."
+        }
+      ]
+    },
+    "embeddings": {
+      "candidate": {
+        "provider": "groq",
+        "model": "llama-3.1-8b-instant",
+        "bug_tag": "MODEL_EMBED_GROQ_SIMILARITY"
+      },
+      "attempts": [
+        {
+          "bug_tag": "MODEL_EMBED_GROQ_SIMILARITY",
+          "status": "ok",
+          "reason": "success"
+        }
+      ],
+      "result": {
+        "site_signature": "Title: Narayana School | Chittoor, Andhra Pradesh. Fonts: Lora, Playfair Display. Buttons: 8, Links: 28, Sections: 55. Sample buttons: APPLY NOW, , EXPLORE PROGRAMMES, FIND A SCHOOL NEAR YOU, SUBMIT VIA WHATSAPP, VIEW ALL FACILITIES, ALL UPDATES, VIEW ALL UPDATES. Sample headings: ASIA'S LARGEST EDUCATIONAL INSTITUTION, OUR STORY., 600,000+, 50,000+, THE VISIONARY DR. PONGURU NARAYANA., Dr. Sindhura Narayana, Sharani Narayana, Puneet Kothapa. Section labels: ASIA'S LARGEST EDUCATIONAL INSTITUTION, OUR STORY., THE VISIONARY DR. PONGURU NARAYANA., THE 4CS ROADMAP., ACADEMIC PROGRAMMES., TECHNOLOGY & INNOVATION.. Deterministic flags: Glassmorphism cards, Inline style values appear dynamically injected at runtime, No focus states on inputs, Placeholder disappears on focus, Reading width too wide or narrow, Nav has no active/current indicator, Font size does not scale on mobile, Link underlines always on or off, Paragraph lines too long. Verified components: 33. Unverified components: 0.",
+        "mode": "similarities",
+        "similarities": [
+          {
+            "label": "vibe_coded",
+            "score": 0.8,
+            "reason": "Similar use of glass cards, centered headings, and generic CTA copy."
+          },
+          {
+            "label": "touched_up_vibe",
+            "score": 0.6,
+            "reason": "Similar use of templated spacing rhythm, generic cards, and repeated layouts."
+          },
+          {
+            "label": "human_built",
+            "score": 0.2,
+            "reason": "Lack of varied layout rhythm, deliberate typography pairing, and strong interaction states."
+          }
+        ]
+      }
+    },
+    "aggregator": {
+      "candidate": {
+        "provider": "groq",
+        "model": "llama-3.3-70b-versatile",
+        "bug_tag": "MODEL_JSON_GROQ_LLAMA33_70B"
+      },
+      "attempts": [
+        {
+          "bug_tag": "MODEL_JSON_GROQ_LLAMA33_70B",
+          "status": "ok",
+          "reason": "success"
+        }
+      ],
+      "result": {
+        "archetype_label": "vibe_coded",
+        "score_adjustment": 5,
+        "signal_overrides": [
+          {
+            "id": "glassmorphism",
+            "bucket": "origin",
+            "flagged": false,
+            "confidence": 0.0,
+            "source": "vision",
+            "reason": "Cards have solid white backgrounds and soft shadows, with no frosted glass or backdrop blur effect present.",
+            "fix": "No fix needed"
+          },
+          {
+            "id": "pill_buttons",
+            "bucket": "origin",
+            "flagged": true,
+            "confidence": 0.0,
+            "source": "vision",
+            "reason": "Buttons like 'APPLY NOW' have significantly rounded corners, appearing pill-shaped.",
+            "fix": "Reduce button radius to a deliberate component radius."
+          },
+          {
+            "id": "bento_grid",
+            "bucket": "origin",
+            "flagged": true,
+            "confidence": 0.0,
+            "source": "vision",
+            "reason": "Sections like 'THE 4CS ROADMAP', 'ACADEMIC PROGRAMMES', and 'TECHNOLOGY & INNOVATION' display content in neatly aligned, distinct card-based grid layouts, characteristic of a bento grid.",
+            "fix": "Break the grid rhythm with content-led layout variation."
+          },
+          {
+            "id": "all_centered_headings",
+            "bucket": "origin",
+            "flagged": true,
+            "confidence": 0.0,
+            "source": "vision",
+            "reason": "Almost all major section headings across the page are consistently centered.",
+            "fix": "Mix left-aligned and centered sections based on content."
+          },
+          {
+            "id": "missing_focus_states",
+            "bucket": "polish",
+            "flagged": true,
+            "confidence": 0.85,
+            "source": "rules",
+            "reason": "5/5 inputs lack visible focus indicators.",
+            "fix": "Add visible focus rings with accessible contrast."
+          },
+          {
+            "id": "placeholder_only_labels",
+            "bucket": "polish",
+            "flagged": true,
+            "confidence": 0.7,
+            "source": "rules",
+            "reason": "Most inputs rely on placeholders without persistent labels.",
+            "fix": "Use persistent labels or floating labels."
+          },
+          {
+            "id": "bad_reading_width",
+            "bucket": "polish",
+            "flagged": true,
+            "confidence": 0.6,
+            "source": "rules",
+            "reason": "Paragraph widths look uncomfortable for reading.",
+            "fix": "Constrain paragraph measure to comfortable line lengths."
+          },
+          {
+            "id": "no_nav_active",
+            "bucket": "polish",
+            "flagged": true,
+            "confidence": 0.55,
+            "source": "rules",
+            "reason": "Navigation links have no obvious active/current state.",
+            "fix": "Add active state for the current route or section."
+          },
+          {
+            "id": "no_fluid_type",
+            "bucket": "polish",
+            "flagged": true,
+            "confidence": 0.4,
+            "source": "rules",
+            "reason": "No fluid heading type tokens detected in computed snapshot.",
+            "fix": "Use responsive type tokens or clamp()."
+          },
+          {
+            "id": "link_underline_static",
+            "bucket": "polish",
+            "flagged": true,
+            "confidence": 0.45,
+            "source": "rules",
+            "reason": "Links appear uniformly underlined or uniformly plain.",
+            "fix": "Add a link hover/focus underline transition."
+          },
+          {
+            "id": "unconstrained_paragraphs",
+            "bucket": "polish",
+            "flagged": true,
+            "confidence": 0.7,
+            "source": "rules",
+            "reason": "Some paragraph lines exceed comfortable reading width.",
+            "fix": "Constrain paragraph max-width."
+          }
+        ]
+      }
+    }
+  },
+  "source_code": {
+    "repo_url": "https://github.com/Sai-Videsh/Narayana_School_Ctr",
+    "owner": "Sai-Videsh",
+    "repo": "Narayana_School_Ctr",
+    "branch": "main",
+    "files_scanned": 51,
+    "files_skipped": 0,
+    "fetched_file_paths": [
+      ".gitignore",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "PROJECT_MEMORY.md",
+      "README.md",
+      "app/favicon.ico",
+      "app/globals.css",
+      "app/layout.tsx",
+      "app/page.tsx",
+      "components/About.tsx",
+      "components/Admissions.tsx",
+      "components/CampusGallery.tsx",
+      "components/Faculty.tsx",
+      "components/Features.tsx",
+      "components/Founders.tsx",
+      "components/Hero.tsx",
+      "components/Innovation.tsx",
+      "components/Methodology.tsx",
+      "components/Navbar.tsx",
+      "components/NewsEvents.tsx",
+      "components/Programs.tsx",
+      "components/Results.tsx",
+      "components/SmoothScroll.tsx",
+      "components/SpecialProgrammes.tsx",
+      "components/Testimonials.tsx",
+      "eslint.config.mjs",
+      "next.config.ts",
+      "package-lock.json",
+      "package.json",
+      "postcss.config.mjs",
+      "public/Bani Brata Majee.webp",
+      "public/Dr. Sindhura Narayana.png",
+      "public/Dr._Ponguru_Narayana_(cropped).jpg",
+      "public/Library.webp",
+      "public/Mrinal Kishore Jha.webp",
+      "public/Nilkrishna.webp",
+      "public/Puneet Kothapa.png",
+      "public/Sharani Narayana.png",
+      "public/file.svg",
+      "public/globe.svg",
+      "public/innovation lab.webp",
+      "public/jeevan.webp",
+      "public/logo.png",
+      "public/narayana School Architecture.png",
+      "public/neet_2025_toppers.jpg",
+      "public/next.svg",
+      "public/sports.webp",
+      "public/toppers_jeemain_2025.avif",
+      "public/vercel.svg",
+      "public/window.svg",
+      "tsconfig.json"
+    ],
+    "fetched_file_structure": "|-- app/\n|   |-- favicon.ico\n|   |-- globals.css\n|   |-- layout.tsx\n|   `-- page.tsx\n|-- components/\n|   |-- About.tsx\n|   |-- Admissions.tsx\n|   |-- CampusGallery.tsx\n|   |-- Faculty.tsx\n|   |-- Features.tsx\n|   |-- Founders.tsx\n|   |-- Hero.tsx\n|   |-- Innovation.tsx\n|   |-- Methodology.tsx\n|   |-- Navbar.tsx\n|   |-- NewsEvents.tsx\n|   |-- Programs.tsx\n|   |-- Results.tsx\n|   |-- SmoothScroll.tsx\n|   |-- SpecialProgrammes.tsx\n|   `-- Testimonials.tsx\n|-- public/\n|   |-- Bani Brata Majee.webp\n|   |-- Dr. Sindhura Narayana.png\n|   |-- Dr._Ponguru_Narayana_(cropped).jpg\n|   |-- Library.webp\n|   |-- Mrinal Kishore Jha.webp\n|   |-- Nilkrishna.webp\n|   |-- Puneet Kothapa.png\n|   |-- Sharani Narayana.png\n|   |-- file.svg\n|   |-- globe.svg\n|   |-- innovation lab.webp\n|   |-- jeevan.webp\n|   |-- logo.png\n|   |-- narayana School Architecture.png\n|   |-- neet_2025_toppers.jpg\n|   |-- next.svg\n|   |-- sports.webp\n|   |-- toppers_jeemain_2025.avif\n|   |-- vercel.svg\n|   `-- window.svg\n|-- .gitignore\n|-- AGENTS.md\n|-- CLAUDE.md\n|-- PROJECT_MEMORY.md\n|-- README.md\n|-- eslint.config.mjs\n|-- next.config.ts\n|-- package-lock.json\n|-- package.json\n|-- postcss.config.mjs\n`-- tsconfig.json",
+    "bytes_scanned": 4943652,
+    "source_code_score": 160.8,
+    "normalized_source_code_score": 41,
+    "score_cap": 396,
+    "tier_counts": {
+      "1": 2,
+      "2": 11,
+      "3": 7,
+      "4": 2
+    },
+    "findings": [
+      {
+        "id": "tailwind_default_purple_gradient",
+        "name": "Default Tailwind purple/pink gradient classes in source",
+        "tier": 1,
+        "bucket": "origin",
+        "weight": 21.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "No default Tailwind purple/pink gradient classes found in fetched source.",
+        "evidence": {
+          "matches": []
+        }
+      },
+      {
+        "id": "rounded_full_tailwind_buttons",
+        "name": "Tailwind rounded-full used in JSX components",
+        "tier": 1,
+        "bucket": "origin",
+        "weight": 21.0,
+        "flagged": true,
+        "points": 21,
+        "confidence": 1.0,
+        "reason": "JSX source uses rounded-full, confirming pill radius came from Tailwind classes.",
+        "evidence": {
+          "matches": [
+            {
+              "path": "components/CampusGallery.tsx",
+              "matches": [
+                "rounded-full"
+              ]
+            },
+            {
+              "path": "components/Founders.tsx",
+              "matches": [
+                "rounded-full"
+              ]
+            },
+            {
+              "path": "components/Hero.tsx",
+              "matches": [
+                "rounded-full"
+              ]
+            },
+            {
+              "path": "components/Innovation.tsx",
+              "matches": [
+                "rounded-full"
+              ]
+            },
+            {
+              "path": "components/Methodology.tsx",
+              "matches": [
+                "rounded-full"
+              ]
+            },
+            {
+              "path": "components/Navbar.tsx",
+              "matches": [
+                "rounded-full"
+              ]
+            },
+            {
+              "path": "components/Results.tsx",
+              "matches": [
+                "rounded-full"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "systemic_backdrop_blur",
+        "name": "Backdrop blur used across multiple source files",
+        "tier": 1,
+        "bucket": "origin",
+        "weight": 21.0,
+        "flagged": true,
+        "points": 21,
+        "confidence": 0.9,
+        "reason": "backdrop-blur appears in multiple files, suggesting systemic glassmorphism.",
+        "evidence": {
+          "matches": [
+            {
+              "path": "components/Founders.tsx",
+              "matches": [
+                "backdrop-blur-sm"
+              ]
+            },
+            {
+              "path": "components/SpecialProgrammes.tsx",
+              "matches": [
+                "backdrop-blur-md",
+                "backdrop-blur-sm"
+              ]
+            }
+          ],
+          "file_count": 2
+        }
+      },
+      {
+        "id": "missing_tailwind_design_tokens",
+        "name": "Tailwind config lacks custom color tokens",
+        "tier": 2,
+        "bucket": "origin",
+        "weight": 13.0,
+        "flagged": true,
+        "points": 13,
+        "confidence": 0.8,
+        "reason": "Tailwind classes are used, but no custom color tokens were found in tailwind config.",
+        "evidence": {
+          "tailwind_config_files": [],
+          "ats_review": {
+            "id": "missing_tailwind_design_tokens",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Tailwind classes are used, but no custom color tokens were found in tailwind config.",
+            "fix": "Add custom color tokens to tailwind config"
+          }
+        },
+        "fix": "Add custom color tokens to tailwind config"
+      },
+      {
+        "id": "default_inter_or_font_sans",
+        "name": "Default Inter/Geist/font-sans typography in source",
+        "tier": 2,
+        "bucket": "origin",
+        "weight": 13.0,
+        "flagged": true,
+        "points": 13,
+        "confidence": 0.8,
+        "reason": "Source uses font-sans, Inter, or Geist without evidence of a custom font setup.",
+        "evidence": {
+          "tailwind_config_files": [],
+          "ats_review": {
+            "id": "default_inter_or_font_sans",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Source uses font-sans, Inter, or Geist without evidence of a custom font setup.",
+            "fix": "Set a custom font in tailwind config"
+          }
+        },
+        "fix": "Set a custom font in tailwind config"
+      },
+      {
+        "id": "stock_shadcn_imports_unmodified",
+        "name": "Stock shadcn/ui imports with near-default local primitives",
+        "tier": 2,
+        "bucket": "origin",
+        "weight": 13.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "No near-default shadcn/ui primitive usage was confirmed.",
+        "evidence": {
+          "matches": []
+        }
+      },
+      {
+        "id": "transition_all_default",
+        "name": "Default transition-all duration-300 animation pattern",
+        "tier": 3,
+        "bucket": "polish",
+        "weight": 4.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "No default transition-all pattern found.",
+        "evidence": {
+          "matches": []
+        }
+      },
+      {
+        "id": "outline_none_without_focus_replacement",
+        "name": "outline-none without nearby focus replacement",
+        "tier": 3,
+        "bucket": "polish",
+        "weight": 4.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "No unsafe outline-none usage confirmed.",
+        "evidence": {
+          "matches": []
+        }
+      },
+      {
+        "id": "no_reduced_motion_source",
+        "name": "No prefers-reduced-motion handling in source",
+        "tier": 3,
+        "bucket": "polish",
+        "weight": 4.0,
+        "flagged": true,
+        "points": 4,
+        "confidence": 0.8,
+        "reason": "No prefers-reduced-motion media query or equivalent source handling was found.",
+        "evidence": {
+          "files_checked": 22,
+          "ats_review": {
+            "id": "no_reduced_motion_source",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "No prefers-reduced-motion media query or equivalent source handling was found.",
+            "fix": "Add prefers-reduced-motion media query to CSS"
+          }
+        },
+        "fix": "Add prefers-reduced-motion media query to CSS"
+      },
+      {
+        "id": "production_placeholders",
+        "name": "Production placeholders or debug logs left in components",
+        "tier": 3,
+        "bucket": "polish",
+        "weight": 3.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "No obvious production placeholders or debug logs found.",
+        "evidence": {
+          "matches": []
+        }
+      },
+      {
+        "id": "magic_zindex_source",
+        "name": "Magic z-index values in source",
+        "tier": 3,
+        "bucket": "origin",
+        "weight": 4.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "No magic z-index values found in source.",
+        "evidence": {
+          "matches": []
+        }
+      },
+      {
+        "id": "unoptimized_images_source",
+        "name": "Raw <img> tags in a Next.js frontend",
+        "tier": 4,
+        "bucket": "polish",
+        "weight": 3.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "No unoptimized raw <img> usage confirmed in a Next.js frontend.",
+        "evidence": {
+          "matches": [],
+          "next_config_files": [
+            "next.config.ts"
+          ]
+        }
+      },
+      {
+        "id": "uniform_icon_size_source",
+        "name": "Lucide icons all use the same size",
+        "tier": 4,
+        "bucket": "origin",
+        "weight": 4.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Icon sizing varies or could not be confirmed from the scanned source.",
+        "evidence": {
+          "matches": []
+        }
+      },
+      {
+        "id": "barrel_index_exports",
+        "name": "Barrel/index export usage detected",
+        "tier": 2,
+        "bucket": "structure",
+        "weight": 13.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found index/barrel exports in source files.",
+        "evidence": {
+          "matches": []
+        }
+      },
+      {
+        "id": "has_test_or_story_files",
+        "name": "Repository contains test or story files",
+        "tier": 3,
+        "bucket": "quality",
+        "weight": 4.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found test or story files indicating component testing/stories.",
+        "evidence": {
+          "files": []
+        }
+      },
+      {
+        "id": "many_default_exports",
+        "name": "Multiple default exports present",
+        "tier": 2,
+        "bucket": "structure",
+        "weight": 13.0,
+        "flagged": true,
+        "points": 13,
+        "confidence": 1.0,
+        "reason": "Default exports present in source files.",
+        "evidence": {
+          "matches": [
+            {
+              "path": "app/layout.tsx",
+              "matches": [
+                "export default "
+              ]
+            },
+            {
+              "path": "app/page.tsx",
+              "matches": [
+                "export default "
+              ]
+            },
+            {
+              "path": "components/About.tsx",
+              "matches": [
+                "export default "
+              ]
+            },
+            {
+              "path": "components/Admissions.tsx",
+              "matches": [
+                "export default "
+              ]
+            },
+            {
+              "path": "components/CampusGallery.tsx",
+              "matches": [
+                "export default "
+              ]
+            },
+            {
+              "path": "components/Faculty.tsx",
+              "matches": [
+                "export default "
+              ]
+            },
+            {
+              "path": "components/Features.tsx",
+              "matches": [
+                "export default "
+              ]
+            },
+            {
+              "path": "components/Founders.tsx",
+              "matches": [
+                "export default "
+              ]
+            },
+            {
+              "path": "components/Hero.tsx",
+              "matches": [
+                "export default "
+              ]
+            },
+            {
+              "path": "components/Innovation.tsx",
+              "matches": [
+                "export default "
+              ]
+            },
+            {
+              "path": "components/Methodology.tsx",
+              "matches": [
+                "export default "
+              ]
+            },
+            {
+              "path": "components/Navbar.tsx",
+              "matches": [
+                "export default "
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "custom_hooks_present",
+        "name": "Custom React hooks detected",
+        "tier": 2,
+        "bucket": "structure",
+        "weight": 13.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Custom hooks (useXYZ) were detected in source.",
+        "evidence": {
+          "matches": []
+        }
+      },
+      {
+        "id": "potential_prop_drilling",
+        "name": "Potential prop-drilling heuristic (large prop lists)",
+        "tier": 2,
+        "bucket": "structure",
+        "weight": 13.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found component instances with many props in JSX suggesting prop drilling.",
+        "evidence": {
+          "matches": []
+        }
+      },
+      {
+        "id": "any_type_usage",
+        "name": "Uses TypeScript `any` type",
+        "tier": 3,
+        "bucket": "quality",
+        "weight": 4.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found uses of `any` in TypeScript source.",
+        "evidence": {
+          "matches": []
+        }
+      },
+      {
+        "id": "missing_useeffect_deps",
+        "name": "useEffect calls without dependency arrays",
+        "tier": 2,
+        "bucket": "quality",
+        "weight": 13.0,
+        "flagged": true,
+        "points": 13,
+        "confidence": 0.9,
+        "reason": "Detected useEffect calls that likely lack dependency arrays.",
+        "evidence": {
+          "matches": [
+            {
+              "path": "components/Features.tsx",
+              "snippet": "useEffect(()"
+            },
+            {
+              "path": "components/Hero.tsx",
+              "snippet": "useEffect(()"
+            },
+            {
+              "path": "components/SmoothScroll.tsx",
+              "snippet": "useEffect(()"
+            },
+            {
+              "path": "components/SpecialProgrammes.tsx",
+              "snippet": "useEffect(()"
+            }
+          ]
+        }
+      },
+      {
+        "id": "missing_globals_css",
+        "name": "Missing or empty globals.css",
+        "tier": 2,
+        "bucket": "style",
+        "weight": 6.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.6,
+        "reason": "globals.css present but no CSS custom properties found.",
+        "evidence": {
+          "globals_files": [
+            "app/globals.css"
+          ]
+        }
+      },
+      {
+        "id": "css_custom_properties_present",
+        "name": "CSS custom properties present",
+        "tier": 2,
+        "bucket": "style",
+        "weight": 6.0,
+        "flagged": true,
+        "points": 6,
+        "confidence": 0.9,
+        "reason": "CSS custom properties were found in source.",
+        "evidence": {
+          "present": true
+        }
+      },
+      {
+        "id": "tailwind_spacing_scale_missing",
+        "name": "Tailwind spacing scale appears unextended",
+        "tier": 2,
+        "bucket": "style",
+        "weight": 13.0,
+        "flagged": true,
+        "points": 13,
+        "confidence": 0.9,
+        "reason": "Tailwind classes used but no spacing scale found in tailwind.config.",
+        "evidence": {
+          "tailwind_config_files": []
+        }
+      },
+      {
+        "id": "tailwind_extend_spacing",
+        "name": "Tailwind extend.spacing usage detected",
+        "tier": 3,
+        "bucket": "style",
+        "weight": 6.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "tailwind.config extends spacing scale.",
+        "evidence": {
+          "tailwind_config_files": []
+        }
+      },
+      {
+        "id": "at_layer_usage",
+        "name": "@layer usage in CSS/tailwind",
+        "tier": 3,
+        "bucket": "style",
+        "weight": 4.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found @layer rules in CSS or config.",
+        "evidence": {}
+      },
+      {
+        "id": "inline_keyframes_present",
+        "name": "Inline @keyframes detected",
+        "tier": 3,
+        "bucket": "style",
+        "weight": 4.0,
+        "flagged": true,
+        "points": 4,
+        "confidence": 0.8,
+        "reason": "Inline keyframes present in CSS/source.",
+        "evidence": {
+          "ats_review": {
+            "id": "inline_keyframes_present",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Inline keyframes present in CSS/source.",
+            "fix": "Move keyframes to separate CSS file"
+          }
+        },
+        "fix": "Move keyframes to separate CSS file"
+      },
+      {
+        "id": "duplicate_classname_patterns",
+        "name": "Duplicate className patterns in source",
+        "tier": 3,
+        "bucket": "style",
+        "weight": 4.0,
+        "flagged": true,
+        "points": 4,
+        "confidence": 0.8,
+        "reason": "Found duplicate className patterns in files.",
+        "evidence": {
+          "matches": [
+            {
+              "path": "app/page.tsx",
+              "class": "text-gray-600 hover:text-brand-orange text-sm transition-colors"
+            },
+            {
+              "path": "components/Admissions.tsx",
+              "class": "w-full bg-surface border-2 border-brand-blue/10 p-4 md:p-5 rounded-xl md:rounded-2xl text-sm md:text-base text-dark outline-none focus:border-brand-orange transition-colors"
+            },
+            {
+              "path": "components/Features.tsx",
+              "class": "w-8 h-8 text-brand"
+            },
+            {
+              "path": "components/Innovation.tsx",
+              "class": "w-6 md:w-8 h-6 md:h-8"
+            },
+            {
+              "path": "components/Methodology.tsx",
+              "class": "w-8 md:w-10 h-8 md:h-10"
+            },
+            {
+              "path": "components/Programs.tsx",
+              "class": "w-8 md:w-10 h-8 md:h-10"
+            },
+            {
+              "path": "components/SpecialProgrammes.tsx",
+              "class": "w-5 md:w-6 h-5 md:h-6"
+            }
+          ],
+          "ats_review": {
+            "id": "duplicate_classname_patterns",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Found duplicate className patterns in files.",
+            "fix": "Remove duplicate className patterns"
+          }
+        },
+        "fix": "Remove duplicate className patterns"
+      },
+      {
+        "id": "unminified_build_artifacts",
+        "name": "Unminified build artifacts present",
+        "tier": 4,
+        "bucket": "ops",
+        "weight": 3.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found build artifact files that look unminified or bundles.",
+        "evidence": {
+          "files": []
+        }
+      },
+      {
+        "id": "large_component_files",
+        "name": "Large source files detected",
+        "tier": 3,
+        "bucket": "quality",
+        "weight": 4.0,
+        "flagged": true,
+        "points": 4,
+        "confidence": 0.8,
+        "reason": "Found very large source files (>20k chars).",
+        "evidence": {
+          "files": [
+            "app/favicon.ico",
+            "package-lock.json",
+            "public/Dr. Sindhura Narayana.png",
+            "public/Dr._Ponguru_Narayana_(cropped).jpg",
+            "public/Library.webp",
+            "public/Puneet Kothapa.png",
+            "public/Sharani Narayana.png",
+            "public/innovation lab.webp",
+            "public/logo.png",
+            "public/narayana School Architecture.png",
+            "public/neet_2025_toppers.jpg",
+            "public/sports.webp"
+          ],
+          "ats_review": {
+            "id": "large_component_files",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Found very large source files (>20k chars).",
+            "fix": "Split large files into smaller components"
+          }
+        },
+        "fix": "Split large files into smaller components"
+      },
+      {
+        "id": "deep_component_folder_nesting",
+        "name": "Deeply nested component folders detected",
+        "tier": 2,
+        "bucket": "structure",
+        "weight": 6.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found files nested deeply in directories (>=6 levels).",
+        "evidence": {
+          "examples": []
+        }
+      },
+      {
+        "id": "missing_eslint_config",
+        "name": "ESLint config missing",
+        "tier": 2,
+        "bucket": "quality",
+        "weight": 6.0,
+        "flagged": true,
+        "points": 6,
+        "confidence": 0.8,
+        "reason": "No ESLint configuration file found.",
+        "evidence": {
+          "ats_review": {
+            "id": "missing_eslint_config",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "No ESLint configuration file found.",
+            "fix": "Create ESLint configuration file"
+          }
+        },
+        "fix": "Create ESLint configuration file"
+      },
+      {
+        "id": "missing_prettier_config",
+        "name": "Prettier config missing",
+        "tier": 3,
+        "bucket": "quality",
+        "weight": 4.0,
+        "flagged": true,
+        "points": 4,
+        "confidence": 0.6,
+        "reason": "No Prettier configuration file found.",
+        "evidence": {
+          "ats_review": {
+            "id": "missing_prettier_config",
+            "flagged": true,
+            "confidence": 0.6,
+            "reason": "No Prettier configuration file found.",
+            "fix": "Create Prettier configuration file"
+          }
+        },
+        "fix": "Create Prettier configuration file"
+      },
+      {
+        "id": "env_example_missing",
+        "name": "Missing .env.example or sample",
+        "tier": 2,
+        "bucket": "ops",
+        "weight": 6.0,
+        "flagged": true,
+        "points": 6,
+        "confidence": 0.8,
+        "reason": "No .env.example or .env.sample found in repository.",
+        "evidence": {
+          "ats_review": {
+            "id": "env_example_missing",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "No .env.example or .env.sample found in repository.",
+            "fix": "Create .env.example or .env.sample file"
+          }
+        },
+        "fix": "Create .env.example or .env.sample file"
+      },
+      {
+        "id": "pinned_dependencies_absent",
+        "name": "Dependencies appear unpinned (semver ranges)",
+        "tier": 2,
+        "bucket": "ops",
+        "weight": 6.0,
+        "flagged": true,
+        "points": 6,
+        "confidence": 0.8,
+        "reason": "package.json contains semver ranges like ^ or ~ indicating unpinned deps.",
+        "evidence": {
+          "path": "package.json",
+          "ats_review": {
+            "id": "pinned_dependencies_absent",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "package.json contains semver ranges like ^ or ~ indicating unpinned deps.",
+            "fix": "Pin dependencies in package.json"
+          }
+        },
+        "fix": "Pin dependencies in package.json"
+      },
+      {
+        "id": "missing_readme",
+        "name": "Repository README missing",
+        "tier": 2,
+        "bucket": "ops",
+        "weight": 6.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "No README.md found in repository.",
+        "evidence": {}
+      },
+      {
+        "id": "lacks_storybook_config",
+        "name": "No Storybook config detected",
+        "tier": 3,
+        "bucket": "quality",
+        "weight": 4.0,
+        "flagged": true,
+        "points": 4,
+        "confidence": 0.8,
+        "reason": "No .storybook or storybook config found.",
+        "evidence": {
+          "ats_review": {
+            "id": "lacks_storybook_config",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "No .storybook or storybook config found.",
+            "fix": "Create Storybook configuration file"
+          }
+        },
+        "fix": "Create Storybook configuration file"
+      },
+      {
+        "id": "many_anys_count",
+        "name": "High count of TypeScript `any` usages",
+        "tier": 3,
+        "bucket": "quality",
+        "weight": 4.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found 0 uses of `any` in TS files.",
+        "evidence": {}
+      },
+      {
+        "id": "many_todos_count",
+        "name": "Many TODO markers in source",
+        "tier": 3,
+        "bucket": "quality",
+        "weight": 4.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found 0 TODO markers in source.",
+        "evidence": {}
+      },
+      {
+        "id": "missing_license",
+        "name": "LICENSE file missing",
+        "tier": 4,
+        "bucket": "ops",
+        "weight": 3.0,
+        "flagged": true,
+        "points": 3,
+        "confidence": 0.6,
+        "reason": "No LICENSE file found in repository.",
+        "evidence": {
+          "ats_review": {
+            "id": "missing_license",
+            "flagged": true,
+            "confidence": 0.6,
+            "reason": "No LICENSE file found in repository.",
+            "fix": "Create LICENSE file"
+          }
+        },
+        "fix": "Create LICENSE file"
+      },
+      {
+        "id": "missing_gitignore",
+        "name": ".gitignore missing",
+        "tier": 4,
+        "bucket": "ops",
+        "weight": 3.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "No .gitignore file found in repository.",
+        "evidence": {}
+      },
+      {
+        "id": "uses_eval_or_newfunction",
+        "name": "Uses eval() or new Function()",
+        "tier": 2,
+        "bucket": "security",
+        "weight": 13.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found use of eval or new Function in source.",
+        "evidence": {
+          "matches": []
+        }
+      },
+      {
+        "id": "inline_styles_usage",
+        "name": "Inline style props detected",
+        "tier": 3,
+        "bucket": "style",
+        "weight": 4.0,
+        "flagged": true,
+        "points": 4,
+        "confidence": 1.0,
+        "reason": "Found inline style={{ ... }} usage in JSX.",
+        "evidence": {
+          "matches": [
+            {
+              "path": "components/CampusGallery.tsx",
+              "matches": [
+                "style={{"
+              ]
+            },
+            {
+              "path": "components/Faculty.tsx",
+              "matches": [
+                "style={{"
+              ]
+            },
+            {
+              "path": "components/Founders.tsx",
+              "matches": [
+                "style={{"
+              ]
+            },
+            {
+              "path": "components/Hero.tsx",
+              "matches": [
+                "style={{"
+              ]
+            },
+            {
+              "path": "components/Innovation.tsx",
+              "matches": [
+                "style={{"
+              ]
+            },
+            {
+              "path": "components/Results.tsx",
+              "matches": [
+                "style={{"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "many_inline_images",
+        "name": "Many raw <img> tags detected",
+        "tier": 4,
+        "bucket": "content",
+        "weight": 3.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found 0 raw <img> usages in JSX files.",
+        "evidence": {}
+      },
+      {
+        "id": "missing_img_alt",
+        "name": "Images missing alt attributes",
+        "tier": 2,
+        "bucket": "a11y",
+        "weight": 13.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found <img> elements without alt attributes.",
+        "evidence": {
+          "matches": []
+        }
+      },
+      {
+        "id": "multiple_package_managers",
+        "name": "Multiple package manager lockfiles detected",
+        "tier": 4,
+        "bucket": "ops",
+        "weight": 4.0,
+        "flagged": true,
+        "points": 4,
+        "confidence": 0.8,
+        "reason": "Found multiple package manager lockfiles (yarn.lock, package-lock.json, pnpm-lock.yaml).",
+        "evidence": {
+          "ats_review": {
+            "id": "multiple_package_managers",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Found multiple package manager lockfiles (yarn.lock, package-lock.json, pnpm-lock.yaml).",
+            "fix": "Remove unnecessary package manager lockfiles"
+          }
+        },
+        "fix": "Remove unnecessary package manager lockfiles"
+      },
+      {
+        "id": "large_barrel_export_index",
+        "name": "Large barrel/index export detected",
+        "tier": 3,
+        "bucket": "structure",
+        "weight": 6.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found barrel/index exports exporting many symbols.",
+        "evidence": {
+          "examples": []
+        }
+      },
+      {
+        "id": "missing_tsconfig",
+        "name": "tsconfig.json missing for TypeScript projects",
+        "tier": 2,
+        "bucket": "ops",
+        "weight": 6.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "No tsconfig.json found while TypeScript files exist.",
+        "evidence": {}
+      },
+      {
+        "id": "uses_window_global_state",
+        "name": "Window global state or globals used",
+        "tier": 2,
+        "bucket": "quality",
+        "weight": 6.0,
+        "flagged": true,
+        "points": 6,
+        "confidence": 0.8,
+        "reason": "Detected usage of window.<var> in source.",
+        "evidence": {
+          "ats_review": {
+            "id": "uses_window_global_state",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Detected usage of window.<var> in source.",
+            "fix": "Avoid using window global state"
+          }
+        },
+        "fix": "Avoid using window global state"
+      },
+      {
+        "id": "direct_dom_manipulation",
+        "name": "Direct DOM manipulation detected",
+        "tier": 2,
+        "bucket": "security",
+        "weight": 13.0,
+        "flagged": true,
+        "points": 13,
+        "confidence": 0.9,
+        "reason": "Found document.querySelector / innerHTML / appendChild usage.",
+        "evidence": {}
+      },
+      {
+        "id": "uses_next_router_or_router_fallback",
+        "name": "Next/router or router fallbacks detected",
+        "tier": 2,
+        "bucket": "structure",
+        "weight": 6.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Detected next/router or useRouter usage.",
+        "evidence": {}
+      },
+      {
+        "id": "deprecated_lifecycle_methods",
+        "name": "Deprecated React lifecycle methods detected",
+        "tier": 2,
+        "bucket": "quality",
+        "weight": 13.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found deprecated React component lifecycle methods.",
+        "evidence": {}
+      },
+      {
+        "id": "unstable_api_usage",
+        "name": "Unstable/experimental API usage detected",
+        "tier": 3,
+        "bucket": "quality",
+        "weight": 6.0,
+        "flagged": false,
+        "points": 0,
+        "confidence": 0.0,
+        "reason": "Found keywords like unstable_/experimental or next/experimental imports.",
+        "evidence": {}
+      }
+    ],
+    "skipped_files": [],
+    "scan_log": [
+      "Starting source-code scan for Sai-Videsh/Narayana_School_Ctr on branch main.",
+      "Fetched repo file structure from GitHub (51 files):\n|-- app/\n|   |-- favicon.ico\n|   |-- globals.css\n|   |-- layout.tsx\n|   `-- page.tsx\n|-- components/\n|   |-- About.tsx\n|   |-- Admissions.tsx\n|   |-- CampusGallery.tsx\n|   |-- Faculty.tsx\n|   |-- Features.tsx\n|   |-- Founders.tsx\n|   |-- Hero.tsx\n|   |-- Innovation.tsx\n|   |-- Methodology.tsx\n|   |-- Navbar.tsx\n|   |-- NewsEvents.tsx\n|   |-- Programs.tsx\n|   |-- Results.tsx\n|   |-- SmoothScroll.tsx\n|   |-- SpecialProgrammes.tsx\n|   `-- Testimonials.tsx\n|-- public/\n|   |-- Bani Brata Majee.webp\n|   |-- Dr. Sindhura Narayana.png\n|   |-- Dr._Ponguru_Narayana_(cropped).jpg\n|   |-- Library.webp\n|   |-- Mrinal Kishore Jha.webp\n|   |-- Nilkrishna.webp\n|   |-- Puneet Kothapa.png\n|   |-- Sharani Narayana.png\n|   |-- file.svg\n|   |-- globe.svg\n|   |-- innovation lab.webp\n|   |-- jeevan.webp\n|   |-- logo.png\n|   |-- narayana School Architecture.png\n|   |-- neet_2025_toppers.jpg\n|   |-- next.svg\n|   |-- sports.webp\n|   |-- toppers_jeemain_2025.avif\n|   |-- vercel.svg\n|   `-- window.svg\n|-- .gitignore\n|-- AGENTS.md\n|-- CLAUDE.md\n|-- PROJECT_MEMORY.md\n|-- README.md\n|-- eslint.config.mjs\n|-- next.config.ts\n|-- package-lock.json\n|-- package.json\n|-- postcss.config.mjs\n`-- tsconfig.json",
+      "Fetched 51 repo files for scanning; skipped 0 oversized binary/media blobs.",
+      "Checked source rule 1/52: tailwind_default_purple_gradient -> clear",
+      "Checked source rule 2/52: rounded_full_tailwind_buttons -> FLAGGED",
+      "Checked source rule 3/52: systemic_backdrop_blur -> FLAGGED",
+      "Checked source rule 4/52: missing_tailwind_design_tokens -> FLAGGED",
+      "Checked source rule 5/52: default_inter_or_font_sans -> FLAGGED",
+      "Checked source rule 6/52: stock_shadcn_imports_unmodified -> clear",
+      "Checked source rule 7/52: transition_all_default -> clear",
+      "Checked source rule 8/52: outline_none_without_focus_replacement -> clear",
+      "Checked source rule 9/52: no_reduced_motion_source -> FLAGGED",
+      "Checked source rule 10/52: production_placeholders -> clear",
+      "Checked source rule 11/52: magic_zindex_source -> clear",
+      "Checked source rule 12/52: unoptimized_images_source -> clear",
+      "Checked source rule 13/52: uniform_icon_size_source -> clear",
+      "Checked source rule 14/52: barrel_index_exports -> clear",
+      "Checked source rule 15/52: has_test_or_story_files -> clear",
+      "Checked source rule 16/52: many_default_exports -> FLAGGED",
+      "Checked source rule 17/52: custom_hooks_present -> clear",
+      "Checked source rule 18/52: potential_prop_drilling -> clear",
+      "Checked source rule 19/52: any_type_usage -> clear",
+      "Checked source rule 20/52: missing_useeffect_deps -> FLAGGED",
+      "Checked source rule 21/52: missing_globals_css -> clear",
+      "Checked source rule 22/52: css_custom_properties_present -> FLAGGED",
+      "Checked source rule 23/52: tailwind_spacing_scale_missing -> FLAGGED",
+      "Checked source rule 24/52: tailwind_extend_spacing -> clear",
+      "Checked source rule 25/52: at_layer_usage -> clear",
+      "Checked source rule 26/52: inline_keyframes_present -> FLAGGED",
+      "Checked source rule 27/52: duplicate_classname_patterns -> FLAGGED",
+      "Checked source rule 28/52: unminified_build_artifacts -> clear",
+      "Checked source rule 29/52: large_component_files -> FLAGGED",
+      "Checked source rule 30/52: deep_component_folder_nesting -> clear",
+      "Checked source rule 31/52: missing_eslint_config -> FLAGGED",
+      "Checked source rule 32/52: missing_prettier_config -> FLAGGED",
+      "Checked source rule 33/52: env_example_missing -> FLAGGED",
+      "Checked source rule 34/52: pinned_dependencies_absent -> FLAGGED",
+      "Checked source rule 35/52: missing_readme -> clear",
+      "Checked source rule 36/52: lacks_storybook_config -> FLAGGED",
+      "Checked source rule 37/52: many_anys_count -> clear",
+      "Checked source rule 38/52: many_todos_count -> clear",
+      "Checked source rule 39/52: missing_license -> FLAGGED",
+      "Checked source rule 40/52: missing_gitignore -> clear",
+      "Checked source rule 41/52: uses_eval_or_newfunction -> clear",
+      "Checked source rule 42/52: inline_styles_usage -> FLAGGED",
+      "Checked source rule 43/52: many_inline_images -> clear",
+      "Checked source rule 44/52: missing_img_alt -> clear",
+      "Checked source rule 45/52: multiple_package_managers -> FLAGGED",
+      "Checked source rule 46/52: large_barrel_export_index -> clear",
+      "Checked source rule 47/52: missing_tsconfig -> clear",
+      "Checked source rule 48/52: uses_window_global_state -> FLAGGED",
+      "Checked source rule 49/52: direct_dom_manipulation -> FLAGGED",
+      "Checked source rule 50/52: uses_next_router_or_router_fallback -> clear",
+      "Checked source rule 51/52: deprecated_lifecycle_methods -> clear",
+      "Checked source rule 52/52: unstable_api_usage -> clear",
+      "[clear] tailwind_default_purple_gradient - No default Tailwind purple/pink gradient classes found in fetched source.",
+      "[FLAGGED] rounded_full_tailwind_buttons - JSX source uses rounded-full, confirming pill radius came from Tailwind classes.",
+      "[FLAGGED] systemic_backdrop_blur - backdrop-blur appears in multiple files, suggesting systemic glassmorphism.",
+      "[FLAGGED] missing_tailwind_design_tokens - Tailwind classes are used, but no custom color tokens were found in tailwind config.",
+      "[FLAGGED] default_inter_or_font_sans - Source uses font-sans, Inter, or Geist without evidence of a custom font setup.",
+      "[clear] stock_shadcn_imports_unmodified - No near-default shadcn/ui primitive usage was confirmed.",
+      "[clear] transition_all_default - No default transition-all pattern found.",
+      "[clear] outline_none_without_focus_replacement - No unsafe outline-none usage confirmed.",
+      "[FLAGGED] no_reduced_motion_source - No prefers-reduced-motion media query or equivalent source handling was found.",
+      "[clear] production_placeholders - No obvious production placeholders or debug logs found.",
+      "[clear] magic_zindex_source - No magic z-index values found in source.",
+      "[clear] unoptimized_images_source - No unoptimized raw <img> usage confirmed in a Next.js frontend.",
+      "[clear] uniform_icon_size_source - Icon sizing varies or could not be confirmed from the scanned source.",
+      "[clear] barrel_index_exports - Found index/barrel exports in source files.",
+      "[clear] has_test_or_story_files - Found test or story files indicating component testing/stories.",
+      "[FLAGGED] many_default_exports - Default exports present in source files.",
+      "[clear] custom_hooks_present - Custom hooks (useXYZ) were detected in source.",
+      "[clear] potential_prop_drilling - Found component instances with many props in JSX suggesting prop drilling.",
+      "[clear] any_type_usage - Found uses of `any` in TypeScript source.",
+      "[FLAGGED] missing_useeffect_deps - Detected useEffect calls that likely lack dependency arrays.",
+      "[clear] missing_globals_css - globals.css present but no CSS custom properties found.",
+      "[FLAGGED] css_custom_properties_present - CSS custom properties were found in source.",
+      "[FLAGGED] tailwind_spacing_scale_missing - Tailwind classes used but no spacing scale found in tailwind.config.",
+      "[clear] tailwind_extend_spacing - tailwind.config extends spacing scale.",
+      "[clear] at_layer_usage - Found @layer rules in CSS or config.",
+      "[FLAGGED] inline_keyframes_present - Inline keyframes present in CSS/source.",
+      "[FLAGGED] duplicate_classname_patterns - Found duplicate className patterns in files.",
+      "[clear] unminified_build_artifacts - Found build artifact files that look unminified or bundles.",
+      "[FLAGGED] large_component_files - Found very large source files (>20k chars).",
+      "[clear] deep_component_folder_nesting - Found files nested deeply in directories (>=6 levels).",
+      "[FLAGGED] missing_eslint_config - No ESLint configuration file found.",
+      "[FLAGGED] missing_prettier_config - No Prettier configuration file found.",
+      "[FLAGGED] env_example_missing - No .env.example or .env.sample found in repository.",
+      "[FLAGGED] pinned_dependencies_absent - package.json contains semver ranges like ^ or ~ indicating unpinned deps.",
+      "[clear] missing_readme - No README.md found in repository.",
+      "[FLAGGED] lacks_storybook_config - No .storybook or storybook config found.",
+      "[clear] many_anys_count - Found 0 uses of `any` in TS files.",
+      "[clear] many_todos_count - Found 0 TODO markers in source.",
+      "[FLAGGED] missing_license - No LICENSE file found in repository.",
+      "[clear] missing_gitignore - No .gitignore file found in repository.",
+      "[clear] uses_eval_or_newfunction - Found use of eval or new Function in source.",
+      "[FLAGGED] inline_styles_usage - Found inline style={{ ... }} usage in JSX.",
+      "[clear] many_inline_images - Found 0 raw <img> usages in JSX files.",
+      "[clear] missing_img_alt - Found <img> elements without alt attributes.",
+      "[FLAGGED] multiple_package_managers - Found multiple package manager lockfiles (yarn.lock, package-lock.json, pnpm-lock.yaml).",
+      "[clear] large_barrel_export_index - Found barrel/index exports exporting many symbols.",
+      "[clear] missing_tsconfig - No tsconfig.json found while TypeScript files exist.",
+      "[FLAGGED] uses_window_global_state - Detected usage of window.<var> in source.",
+      "[FLAGGED] direct_dom_manipulation - Found document.querySelector / innerHTML / appendChild usage.",
+      "[clear] uses_next_router_or_router_fallback - Detected next/router or useRouter usage.",
+      "[clear] deprecated_lifecycle_methods - Found deprecated React component lifecycle methods.",
+      "[clear] unstable_api_usage - Found keywords like unstable_/experimental or next/experimental imports.",
+      "Computed raw source code score 160.8/396.",
+      "Applied ATS source review via MODEL_ATS_GROQ_LLAMA31_8B to 14 borderline findings.",
+      "Applied ATS source review via MODEL_ATS_GROQ_LLAMA31_8B to 14 borderline findings.",
+      "Added normalized source code score 41/100 (raw 160.8/396); rendered vibe score 18, final vibe score 28."
+    ],
+    "ats_review": {
+      "candidate": {
+        "task": "ats_review",
+        "provider": "groq",
+        "model": "llama-3.1-8b-instant",
+        "role": "primary",
+        "bug_tag": "MODEL_ATS_GROQ_LLAMA31_8B"
+      },
+      "attempts": [
+        {
+          "bug_tag": "MODEL_ATS_GROQ_LLAMA31_8B",
+          "status": "ok",
+          "reason": "success"
+        }
+      ],
+      "result": {
+        "signal_reviews": [
+          {
+            "id": "missing_tailwind_design_tokens",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Tailwind classes are used, but no custom color tokens were found in tailwind config.",
+            "fix": "Add custom color tokens to tailwind config"
+          },
+          {
+            "id": "default_inter_or_font_sans",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Source uses font-sans, Inter, or Geist without evidence of a custom font setup.",
+            "fix": "Set a custom font in tailwind config"
+          },
+          {
+            "id": "no_reduced_motion_source",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "No prefers-reduced-motion media query or equivalent source handling was found.",
+            "fix": "Add prefers-reduced-motion media query to CSS"
+          },
+          {
+            "id": "inline_keyframes_present",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Inline keyframes present in CSS/source.",
+            "fix": "Move keyframes to separate CSS file"
+          },
+          {
+            "id": "duplicate_classname_patterns",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Found duplicate className patterns in files.",
+            "fix": "Remove duplicate className patterns"
+          },
+          {
+            "id": "large_component_files",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Found very large source files (>20k chars).",
+            "fix": "Split large files into smaller components"
+          },
+          {
+            "id": "missing_eslint_config",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "No ESLint configuration file found.",
+            "fix": "Create ESLint configuration file"
+          },
+          {
+            "id": "missing_prettier_config",
+            "flagged": true,
+            "confidence": 0.6,
+            "reason": "No Prettier configuration file found.",
+            "fix": "Create Prettier configuration file"
+          },
+          {
+            "id": "env_example_missing",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "No .env.example or .env.sample found in repository.",
+            "fix": "Create .env.example or .env.sample file"
+          },
+          {
+            "id": "pinned_dependencies_absent",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "package.json contains semver ranges like ^ or ~ indicating unpinned deps.",
+            "fix": "Pin dependencies in package.json"
+          },
+          {
+            "id": "lacks_storybook_config",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "No .storybook or storybook config found.",
+            "fix": "Create Storybook configuration file"
+          },
+          {
+            "id": "missing_license",
+            "flagged": true,
+            "confidence": 0.6,
+            "reason": "No LICENSE file found in repository.",
+            "fix": "Create LICENSE file"
+          },
+          {
+            "id": "multiple_package_managers",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Found multiple package manager lockfiles (yarn.lock, package-lock.json, pnpm-lock.yaml).",
+            "fix": "Remove unnecessary package manager lockfiles"
+          },
+          {
+            "id": "uses_window_global_state",
+            "flagged": true,
+            "confidence": 0.8,
+            "reason": "Detected usage of window.<var> in source.",
+            "fix": "Avoid using window global state"
+          }
+        ]
+      },
+      "applied_signal_ids": [
+        "missing_tailwind_design_tokens",
+        "default_inter_or_font_sans",
+        "no_reduced_motion_source",
+        "inline_keyframes_present",
+        "duplicate_classname_patterns",
+        "large_component_files",
+        "missing_eslint_config",
+        "missing_prettier_config",
+        "env_example_missing",
+        "pinned_dependencies_absent",
+        "lacks_storybook_config",
+        "missing_license",
+        "multiple_package_managers",
+        "uses_window_global_state"
+      ]
+    },
+    "confidence_boosts": [],
+    "raw_source_code_score": 160.8
+  },
+  "scan_live_log": [
+    "[humanonn] Site scan timer started for https://narayanaschoolctr.vercel.app/",
+    "[humanonn] Starting crawl for https://narayanaschoolctr.vercel.app/",
+    "[humanonn] Main screenshot target: reports\\data\\7b86c6582e7d\\main.png",
+    "[humanonn] Legacy screenshot target: reports\\screenshots\\7b86c6582e7d.png",
+    "[humanonn] Launching Chromium (headless=True)",
+    "[humanonn] Navigating to page with staged readiness checks",
+    "[humanonn] Navigation reached DOMContentLoaded",
+    "[humanonn] Page reached load state",
+    "[humanonn] Waiting for page settle: post-navigation",
+    "[humanonn] Performing scroll-to-bottom render pass",
+    "[humanonn] Waiting for page settle: after-scroll-to-bottom",
+    "[humanonn] Navigation complete: https://narayanaschoolctr.vercel.app/",
+    "[humanonn] Discovering visible sections",
+    "[humanonn] Section candidates found: 13",
+    "[humanonn] Section 1: ASIA'S LARGEST EDUCATIONAL INSTITUTION (1440x1200)",
+    "[humanonn] Section 2: OUR STORY. (1440x771)",
+    "[humanonn] Section 3: THE VISIONARY DR. PONGURU NARAYANA. (1440x1791)",
+    "[humanonn] Section 4: THE 4CS ROADMAP. (1440x2012)",
+    "[humanonn] Section 5: ACADEMIC PROGRAMMES. (1440x1291)",
+    "[humanonn] Section 6: TECHNOLOGY & INNOVATION. (1440x1017)",
+    "[humanonn] Section 7: RESULTS THAT SHAPE HISTORY. (1440x916)",
+    "[humanonn] Section 8: BEYOND THE CLASSROOM. (1440x844)",
+    "[humanonn] Overview pass: scrolling section by section to trigger lazy rendering",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Overview section 1/13: ASIA'S LARGEST EDUCATIONAL INSTITUTION",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Overview section 2/13: OUR STORY.",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Overview section 3/13: THE VISIONARY DR. PONGURU NARAYANA.",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Overview section 4/13: THE 4CS ROADMAP.",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Overview section 5/13: ACADEMIC PROGRAMMES.",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Overview section 6/13: TECHNOLOGY & INNOVATION.",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Overview section 7/13: RESULTS THAT SHAPE HISTORY.",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Overview section 8/13: BEYOND THE CLASSROOM.",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Overview section 9/13: ADMISSION PROCESS.",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Overview section 10/13: OUR WORLD.",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Overview section 11/13: VOICES OF SUCCESS.",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Overview section 12/13: NEWS & EVENTS.",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Overview section 13/13: NARAYANA CHITTOOR Chittoor Campus, Andhra Pradesh. Empowerin",
+    "[humanonn] Waiting for page settle: after-overview",
+    "[humanonn] Waiting for page settle: before-main-screenshot",
+    "[humanonn] Saved main page overview screenshots",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Capturing section 1/13: ASIA'S LARGEST EDUCATIONAL INSTITUTION",
+    "[humanonn] Components found in section-1: 3 representatives, 0 duplicates collapsed",
+    "[humanonn] Probe start: component 1 'NARAYANA CHITTOOR' {'x': 33, 'y': 13, 'width': 258.421875, 'height': 48}",
+    "[humanonn] Waiting for page settle: direct-probe",
+    "[humanonn] hover_no_diff: component 1 'NARAYANA CHITTOOR' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 1 'NARAYANA CHITTOOR'",
+    "[humanonn] Probe start: component 2 'APPLY NOW' {'x': 1290.8125, 'y': 19.5, 'width': 116.171875, 'height': 35}",
+    "[humanonn] Waiting for page settle: direct-probe",
+    "[humanonn] hover_no_diff: component 2 'APPLY NOW' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 2 'APPLY NOW'",
+    "[humanonn] Probe start: component 3 'Narayana School Logo' {'x': 33, 'y': 13, 'width': 48, 'height': 48}",
+    "[humanonn] Waiting for page settle: direct-probe",
+    "[humanonn] hover_no_diff: component 3 'Narayana School Logo' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 3 'Narayana School Logo'",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Capturing section 2/13: OUR STORY.",
+    "[humanonn] Components found in section-2: 2 representatives, 0 duplicates collapsed",
+    "[humanonn] Probe start: component 1 '600,000+ STUDENTS EDUCATED DAILY' {'x': 272, 'y': 723.5, 'width': 424, 'height': 166}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 1 '600,000+ STUDENTS EDUCATED DAILY' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 1 '600,000+ STUDENTS EDUCATED DAILY'",
+    "[humanonn] Probe start: component 2 '50,000+ DEDICATED EDUCATORS' {'x': 744, 'y': 516.5, 'width': 424, 'height': 166}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 2 '50,000+ DEDICATED EDUCATORS' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 2 '50,000+ DEDICATED EDUCATORS'",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Capturing section 3/13: THE VISIONARY DR. PONGURU NARAYANA.",
+    "[humanonn] Components found in section-3: 5 representatives, 0 duplicates collapsed",
+    "[humanonn] Probe start: component 1 '\"Education is not just about learning facts, but training the mind to think.\" FO' {'x': 104, 'y': 298, 'width': 584, 'height': 133}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 1 '\"Education is not just about learning facts, but training the mind to think.\" FO' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 1 '\"Education is not just about learning facts, but training the mind to think.\" FO'",
+    "[humanonn] Probe start: component 2 '46+ YEARS OF GLOBAL LEADERSHIP' {'x': 712, 'y': 648.5, 'width': 320, 'height': 157}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 2 '46+ YEARS OF GLOBAL LEADERSHIP' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 2 '46+ YEARS OF GLOBAL LEADERSHIP'",
+    "[humanonn] Probe start: component 3 'Dr. Sindhura Narayana DIRECTOR Gold Medalist in MBBS. Joined the institution in ' {'x': 104, 'y': 766.5, 'width': 378.65625, 'height': 741.3125}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 4 'Sharani Narayana DIRECTOR MBA from Newcastle University, UK. Drives Narayana's b' {'x': 530.65625, 'y': 229.5, 'width': 378.671875, 'height': 741.3125}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 5 'Puneet Kothapa EXECUTIVE LEADERSHIP Instrumental in scaling Narayana from a few ' {'x': 957.328125, 'y': 229.5, 'width': 378.65625, 'height': 741.3125}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Capturing section 4/13: THE 4CS ROADMAP.",
+    "[humanonn] Components found in section-4: 4 representatives, 0 duplicates collapsed",
+    "[humanonn] Probe start: component 1 'COMMON TEACHING Unified pedagogy with a '1+1 model' (one theory period + one pra' {'x': 208, 'y': -61.1875, 'width': 484, 'height': 347.75}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 2 'COMMON MICRO SCHEDULE Day-wise, subject-wise schedules shared with parents at th' {'x': 748, 'y': 821.5625, 'width': 484, 'height': 383.75}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 3 'COMMON EXAMINATION Standardised assessments including CDF (Concept, Definitions ' {'x': 208, 'y': 840.3125, 'width': 484, 'height': 347.75}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 4 'COMMON ANALYSIS Personalised error analysis and performance tracking across all ' {'x': 748, 'y': 822.0625, 'width': 484, 'height': 347.75}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Capturing section 5/13: ACADEMIC PROGRAMMES.",
+    "[humanonn] Components found in section-5: 3 representatives, 0 duplicates collapsed",
+    "[humanonn] Probe start: component 1 'OLYMPIADS National & International level preparation for Math, Science, and Cybe' {'x': 104, 'y': 906.0625, 'width': 389.328125, 'height': 211.75}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 1 'OLYMPIADS National & International level preparation for Math, Science, and Cybe' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 1 'OLYMPIADS National & International level preparation for Math, Science, and Cybe'",
+    "[humanonn] Probe start: component 2 'CO BATCH Advanced batch for students who completed E1-E5 levels in JEE/NEET prep' {'x': 525.328125, 'y': 494.0625, 'width': 389.328125, 'height': 211.75}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 2 'CO BATCH Advanced batch for students who completed E1-E5 levels in JEE/NEET prep' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 2 'CO BATCH Advanced batch for students who completed E1-E5 levels in JEE/NEET prep'",
+    "[humanonn] Probe start: component 3 'CBSE CURRICULUM CBSE-affiliated programs across all grades with national recogni' {'x': 946.65625, 'y': 494.0625, 'width': 389.34375, 'height': 211.75}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 3 'CBSE CURRICULUM CBSE-affiliated programs across all grades with national recogni' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 3 'CBSE CURRICULUM CBSE-affiliated programs across all grades with national recogni'",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Capturing section 6/13: TECHNOLOGY & INNOVATION.",
+    "[humanonn] Components found in section-6: 5 representatives, 0 duplicates collapsed",
+    "[humanonn] Probe start: component 1 'FUTURE-READY LEARNING' {'x': 104, 'y': 187.8125, 'width': 237.796875, 'height': 32}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 1 'FUTURE-READY LEARNING' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 1 'FUTURE-READY LEARNING'",
+    "[humanonn] Probe start: component 2 'NLEARN PLATFORM Our proprietary digital learning platform allowing real-time per' {'x': 104, 'y': 919.5625, 'width': 584, 'height': 162.25}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 2 'NLEARN PLATFORM Our proprietary digital learning platform allowing real-time per' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 2 'NLEARN PLATFORM Our proprietary digital learning platform allowing real-time per'",
+    "[humanonn] Probe start: component 3 'ASTRA Advanced Student Tutoring & Resource Assistant. An AI-enabled tool for per' {'x': 104, 'y': 704.8125, 'width': 584, 'height': 139.5}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 4 'CDF TECHNIQUE Concepts, Definitions & Formulae method that builds deep understan' {'x': 104, 'y': 693.3125, 'width': 584, 'height': 139.5}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 5 'NLEARN ACTIVE' {'x': 752, 'y': -34.6875, 'width': 584, 'height': 584}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 5 'NLEARN ACTIVE' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 5 'NLEARN ACTIVE'",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Capturing section 7/13: RESULTS THAT SHAPE HISTORY.",
+    "[humanonn] Components found in section-7: 4 representatives, 0 duplicates collapsed",
+    "[humanonn] Probe start: component 1 'JEE MAIN 2024 G. Nilkrishna AIR 1' {'x': 752, 'y': 237.8125, 'width': 280, 'height': 350}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 1 'JEE MAIN 2024 G. Nilkrishna AIR 1' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 1 'JEE MAIN 2024 G. Nilkrishna AIR 1'",
+    "[humanonn] Probe start: component 2 'JEE MAIN 2025 Bani Brata Majee 300/300' {'x': 1056, 'y': 424.8125, 'width': 280, 'height': 350}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 3 'NEET UG 2025 Mrinal Kishore Jha AIR 4' {'x': 752, 'y': 798.8125, 'width': 280, 'height': 350}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 4 'NEET UG 2025 K. Jeevan Sai Kumar AIR 18' {'x': 1056, 'y': 424.8125, 'width': 280, 'height': 350}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Capturing section 8/13: BEYOND THE CLASSROOM.",
+    "[humanonn] Components found in section-8: 7 representatives, 0 duplicates collapsed",
+    "[humanonn] Probe start: component 1 'Disha MENTAL WELLNESS & COUNSELLING' {'x': 104, 'y': 646.3125, 'width': 155.421875, 'height': 247}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 2 'nSports HOLISTIC PHYSICAL GROWTH' {'x': 283.421875, 'y': 476.3125, 'width': 155.421875, 'height': 247}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 3 'Yoga Veekshan MINDFULNESS & BALANCE' {'x': 462.84375, 'y': 480.3125, 'width': 155.4375, 'height': 247}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 4 'Soft Skills LEADERSHIP & COMMUNICATION' {'x': 642.28125, 'y': 476.3125, 'width': 155.421875, 'height': 247}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 5 'Olympiads ADVANCED NATIONAL PREP' {'x': 821.703125, 'y': 476.3125, 'width': 155.4375, 'height': 247}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 6 'Adoption Calling PERSONALISED ACADEMIC CARE' {'x': 1001.140625, 'y': 476.3125, 'width': 155.421875, 'height': 247}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 7 'TEDxNarayana STUDENT LEADERSHIP PLATFORM' {'x': 1180.5625, 'y': 476.3125, 'width': 155.4375, 'height': 247}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Capturing section 9/13: ADMISSION PROCESS.",
+    "[humanonn] Components found in section-9: 7 representatives, 0 duplicates collapsed",
+    "[humanonn] Probe start: component 1 'SUBMIT VIA WHATSAPP' {'x': 809, 'y': 788.3125, 'width': 478, 'height': 60}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 2 'VISIT OFFICIAL ENQUIRY PORTAL' {'x': 809, 'y': 694.3125, 'width': 478, 'height': 20}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 3 'First Name' {'x': 809, 'y': 22.3125, 'width': 231, 'height': 68}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 4 'Last Name' {'x': 1056, 'y': 566.3125, 'width': 231, 'height': 68}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 5 'Email Address' {'x': 809, 'y': 658.3125, 'width': 478, 'height': 68}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 6 'Select Class Class 6th-10th Class 11th-12th' {'x': 809, 'y': 658.3125, 'width': 478, 'height': 66}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Retrying component 6 in ADMISSION PROCESS. after pass_1: Locator.screenshot: Timeout 29984ms exceeded.",
+    "[humanonn] Probe start: component 6 'Select Class Class 6th-10th Class 11th-12th' {'x': 809, 'y': 567.3125, 'width': 478, 'height': 66}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Retrying component 6 in ADMISSION PROCESS. after pass_2: Locator.screenshot: Timeout 30000ms exceeded.",
+    "[humanonn] Probe start: component 6 'Select Class Class 6th-10th Class 11th-12th' {'x': 809, 'y': 567.3125, 'width': 478, 'height': 66}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Retrying component 6 in ADMISSION PROCESS. after pass_3: Locator.screenshot: Timeout 29985ms exceeded.",
+    "[humanonn] Marked component 6 in ADMISSION PROCESS. as unverified: Locator.screenshot: Timeout 29985ms exceeded.",
+    "[humanonn] Probe start: component 7 'Message' {'x': 809, 'y': 657.3125, 'width': 478, 'height': 140}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Capturing section 10/13: OUR WORLD.",
+    "[humanonn] Components found in section-10: 6 representatives, 0 duplicates collapsed",
+    "[humanonn] Probe start: component 1 'VIEW ALL FACILITIES' {'x': 1117.71875, 'y': 201.3125, 'width': 218.28125, 'height': 52}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 2 'VIEW ALL FACILITIES' {'x': 1117.71875, 'y': 574.3125, 'width': 218.28125, 'height': 52}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 2 'VIEW ALL FACILITIES' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 2 'VIEW ALL FACILITIES'",
+    "[humanonn] Probe start: component 3 'INFRASTRUCTURE MAIN ARCHITECTURE EXPLORE FACILITY \u2192' {'x': 104, 'y': 690.3125, 'width': 600, 'height': 375}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 3 'INFRASTRUCTURE MAIN ARCHITECTURE EXPLORE FACILITY \u2192' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 3 'INFRASTRUCTURE MAIN ARCHITECTURE EXPLORE FACILITY \u2192'",
+    "[humanonn] Probe start: component 4 'KNOWLEDGE HUB DIGITAL LIBRARY EXPLORE FACILITY \u2192' {'x': 736, 'y': 412.3125, 'width': 600, 'height': 375}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 4 'KNOWLEDGE HUB DIGITAL LIBRARY EXPLORE FACILITY \u2192' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 4 'KNOWLEDGE HUB DIGITAL LIBRARY EXPLORE FACILITY \u2192'",
+    "[humanonn] Probe start: component 5 'NARAYANA SPORTS SPORTS COMPLEX EXPLORE FACILITY \u2192' {'x': 104, 'y': 819.3125, 'width': 600, 'height': 375}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 5 'NARAYANA SPORTS SPORTS COMPLEX EXPLORE FACILITY \u2192' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 5 'NARAYANA SPORTS SPORTS COMPLEX EXPLORE FACILITY \u2192'",
+    "[humanonn] Probe start: component 6 'ADVANCED LABS INNOVATION LAB EXPLORE FACILITY \u2192' {'x': 736, 'y': 412.3125, 'width': 600, 'height': 375}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 6 'ADVANCED LABS INNOVATION LAB EXPLORE FACILITY \u2192' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 6 'ADVANCED LABS INNOVATION LAB EXPLORE FACILITY \u2192'",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Capturing section 11/13: VOICES OF SUCCESS.",
+    "[humanonn] Components found in section-11: 4 representatives, 0 duplicates collapsed",
+    "[humanonn] Probe start: component 1 '\"Scoring 498 in Class 10 was a dream come true. The consistent mentoring and cus' {'x': 104, 'y': 507.3125, 'width': 290, 'height': 368.75}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 2 '\"Narayana gave me the structure, focus and confidence I needed to excel. Scoring' {'x': 418, 'y': 415.3125, 'width': 290, 'height': 368.75}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 3 '\"The daily tests, in-depth discussions, and personalised guidance made a signifi' {'x': 732, 'y': 415.3125, 'width': 290, 'height': 368.75}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 4 '\"The integrated model made managing boards and competitive exams manageable. Too' {'x': 1046, 'y': 415.3125, 'width': 290, 'height': 368.75}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Capturing section 12/13: NEWS & EVENTS.",
+    "[humanonn] Components found in section-12: 3 representatives, 0 duplicates collapsed",
+    "[humanonn] Probe start: component 1 'EVENT Annual Science Fair 2024 May 15, 2024' {'x': 104, 'y': 451.0625, 'width': 1232, 'height': 130}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 2 'ACADEMIC NSAT Scholarship Test Phase 2 June 02, 2024' {'x': 104, 'y': 681.0625, 'width': 1232, 'height': 130}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 3 'SEMINAR Guest Lecture: Future of AI June 10, 2024' {'x': 104, 'y': 681.0625, 'width': 1232, 'height': 130}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Capturing section 13/13: NARAYANA CHITTOOR Chittoor Campus, Andhra Pradesh. Empowerin",
+    "[humanonn] Components found in section-13: 6 representatives, 0 duplicates collapsed",
+    "[humanonn] Probe start: component 1 'Admissions 2024-25' {'x': 530.65625, 'y': 770.0625, 'width': 378.671875, 'height': 20}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 2 'Academic Programmes' {'x': 530.65625, 'y': 806.0625, 'width': 378.671875, 'height': 20}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 3 '4Cs Methodology' {'x': 530.65625, 'y': 842.0625, 'width': 378.671875, 'height': 20}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 4 'Chittoor Portal' {'x': 530.65625, 'y': 878.0625, 'width': 378.671875, 'height': 20}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] Probe start: component 5 'K Suresh +91 9703174756' {'x': 957.328125, 'y': 762.0625, 'width': 378.65625, 'height': 60}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 5 'K Suresh +91 9703174756' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 5 'K Suresh +91 9703174756'",
+    "[humanonn] Probe start: component 6 'GENERAL SUPPORT Toll-Free: 1800 102 3344 info@narayanagroup.com' {'x': 957.328125, 'y': 846.0625, 'width': 378.65625, 'height': 88}",
+    "[humanonn] Waiting for page settle: scroll-into-view",
+    "[humanonn] hover_no_diff: component 6 'GENERAL SUPPORT Toll-Free: 1800 102 3344 info@narayanagroup.com' primary hover; retrying with center-point hover",
+    "[humanonn] hover_no_diff: component 6 'GENERAL SUPPORT Toll-Free: 1800 102 3344 info@narayanagroup.com'",
+    "[humanonn] Artifact manifest written to reports\\data\\7b86c6582e7d\\manifest.json",
+    "[humanonn] Waiting for page settle: before-snapshot",
+    "[humanonn] Extracting computed styles, structure, and content snapshot",
+    "[humanonn] Page title: Narayana School | Chittoor, Andhra Pradesh",
+    "[humanonn] Found 8 buttons, 5 inputs, 28 links, 54 headings, 55 sections, 2 images",
+    "[humanonn] Fonts detected: Lora, Playfair Display",
+    "[humanonn] Sample colors: rgb(15, 23, 42), rgb(255, 255, 255), rgb(14, 165, 233), rgb(255, 107, 0), lab(47.7841 -0.393182 -10.0268)",
+    "[humanonn] Sample button text: APPLY NOW, EXPLORE PROGRAMMES, FIND A SCHOOL NEAR YOU, SUBMIT VIA WHATSAPP, VIEW ALL FACILITIES",
+    "[humanonn] Sample headings: ASIA'S LARGEST EDUCATIONAL INSTITUTION, OUR STORY., 600,000+, 50,000+, THE VISIONARY DR. PONGURU NARAYANA.",
+    "[humanonn] Input types: text, text, email, select, textarea",
+    "[humanonn] Interaction effects recorded: buttons hover 2, links hover 5, cards hover 26, buttons active 2",
+    "[humanonn] Artifacts stored in: reports\\data\\7b86c6582e7d",
+    "[humanonn] Body background: rgb(255, 255, 255) | Hero background image present: False",
+    "[humanonn] Closed Chromium session",
+    "[humanonn] Evaluating rule-based signal set",
+    "[humanonn] Rule evaluation complete: 9/83 signals flagged, vibe score 9",
+    "[humanonn] Building deterministic baseline before smart scoring",
+    "[humanonn] Evaluating rule-based signal set",
+    "[humanonn] Rule evaluation complete: 9/83 signals flagged, vibe score 9",
+    "[humanonn] Vision override enabled from crawl signals; forcing smart scoring vision pass",
+    "[humanonn] Running smart LLM scoring pipeline",
+    "[humanonn] Site scan completed in 352.36s (352356 ms) for https://narayanaschoolctr.vercel.app/"
+  ],
+  "scan_code_log": [
+    "Starting source-code scan for Sai-Videsh/Narayana_School_Ctr on branch main.",
+    "Fetched repo file structure from GitHub (51 files):\n|-- app/\n|   |-- favicon.ico\n|   |-- globals.css\n|   |-- layout.tsx\n|   `-- page.tsx\n|-- components/\n|   |-- About.tsx\n|   |-- Admissions.tsx\n|   |-- CampusGallery.tsx\n|   |-- Faculty.tsx\n|   |-- Features.tsx\n|   |-- Founders.tsx\n|   |-- Hero.tsx\n|   |-- Innovation.tsx\n|   |-- Methodology.tsx\n|   |-- Navbar.tsx\n|   |-- NewsEvents.tsx\n|   |-- Programs.tsx\n|   |-- Results.tsx\n|   |-- SmoothScroll.tsx\n|   |-- SpecialProgrammes.tsx\n|   `-- Testimonials.tsx\n|-- public/\n|   |-- Bani Brata Majee.webp\n|   |-- Dr. Sindhura Narayana.png\n|   |-- Dr._Ponguru_Narayana_(cropped).jpg\n|   |-- Library.webp\n|   |-- Mrinal Kishore Jha.webp\n|   |-- Nilkrishna.webp\n|   |-- Puneet Kothapa.png\n|   |-- Sharani Narayana.png\n|   |-- file.svg\n|   |-- globe.svg\n|   |-- innovation lab.webp\n|   |-- jeevan.webp\n|   |-- logo.png\n|   |-- narayana School Architecture.png\n|   |-- neet_2025_toppers.jpg\n|   |-- next.svg\n|   |-- sports.webp\n|   |-- toppers_jeemain_2025.avif\n|   |-- vercel.svg\n|   `-- window.svg\n|-- .gitignore\n|-- AGENTS.md\n|-- CLAUDE.md\n|-- PROJECT_MEMORY.md\n|-- README.md\n|-- eslint.config.mjs\n|-- next.config.ts\n|-- package-lock.json\n|-- package.json\n|-- postcss.config.mjs\n`-- tsconfig.json",
+    "Fetched 51 repo files for scanning; skipped 0 oversized binary/media blobs.",
+    "Checked source rule 1/52: tailwind_default_purple_gradient -> clear",
+    "Checked source rule 2/52: rounded_full_tailwind_buttons -> FLAGGED",
+    "Checked source rule 3/52: systemic_backdrop_blur -> FLAGGED",
+    "Checked source rule 4/52: missing_tailwind_design_tokens -> FLAGGED",
+    "Checked source rule 5/52: default_inter_or_font_sans -> FLAGGED",
+    "Checked source rule 6/52: stock_shadcn_imports_unmodified -> clear",
+    "Checked source rule 7/52: transition_all_default -> clear",
+    "Checked source rule 8/52: outline_none_without_focus_replacement -> clear",
+    "Checked source rule 9/52: no_reduced_motion_source -> FLAGGED",
+    "Checked source rule 10/52: production_placeholders -> clear",
+    "Checked source rule 11/52: magic_zindex_source -> clear",
+    "Checked source rule 12/52: unoptimized_images_source -> clear",
+    "Checked source rule 13/52: uniform_icon_size_source -> clear",
+    "Checked source rule 14/52: barrel_index_exports -> clear",
+    "Checked source rule 15/52: has_test_or_story_files -> clear",
+    "Checked source rule 16/52: many_default_exports -> FLAGGED",
+    "Checked source rule 17/52: custom_hooks_present -> clear",
+    "Checked source rule 18/52: potential_prop_drilling -> clear",
+    "Checked source rule 19/52: any_type_usage -> clear",
+    "Checked source rule 20/52: missing_useeffect_deps -> FLAGGED",
+    "Checked source rule 21/52: missing_globals_css -> clear",
+    "Checked source rule 22/52: css_custom_properties_present -> FLAGGED",
+    "Checked source rule 23/52: tailwind_spacing_scale_missing -> FLAGGED",
+    "Checked source rule 24/52: tailwind_extend_spacing -> clear",
+    "Checked source rule 25/52: at_layer_usage -> clear",
+    "Checked source rule 26/52: inline_keyframes_present -> FLAGGED",
+    "Checked source rule 27/52: duplicate_classname_patterns -> FLAGGED",
+    "Checked source rule 28/52: unminified_build_artifacts -> clear",
+    "Checked source rule 29/52: large_component_files -> FLAGGED",
+    "Checked source rule 30/52: deep_component_folder_nesting -> clear",
+    "Checked source rule 31/52: missing_eslint_config -> FLAGGED",
+    "Checked source rule 32/52: missing_prettier_config -> FLAGGED",
+    "Checked source rule 33/52: env_example_missing -> FLAGGED",
+    "Checked source rule 34/52: pinned_dependencies_absent -> FLAGGED",
+    "Checked source rule 35/52: missing_readme -> clear",
+    "Checked source rule 36/52: lacks_storybook_config -> FLAGGED",
+    "Checked source rule 37/52: many_anys_count -> clear",
+    "Checked source rule 38/52: many_todos_count -> clear",
+    "Checked source rule 39/52: missing_license -> FLAGGED",
+    "Checked source rule 40/52: missing_gitignore -> clear",
+    "Checked source rule 41/52: uses_eval_or_newfunction -> clear",
+    "Checked source rule 42/52: inline_styles_usage -> FLAGGED",
+    "Checked source rule 43/52: many_inline_images -> clear",
+    "Checked source rule 44/52: missing_img_alt -> clear",
+    "Checked source rule 45/52: multiple_package_managers -> FLAGGED",
+    "Checked source rule 46/52: large_barrel_export_index -> clear",
+    "Checked source rule 47/52: missing_tsconfig -> clear",
+    "Checked source rule 48/52: uses_window_global_state -> FLAGGED",
+    "Checked source rule 49/52: direct_dom_manipulation -> FLAGGED",
+    "Checked source rule 50/52: uses_next_router_or_router_fallback -> clear",
+    "Checked source rule 51/52: deprecated_lifecycle_methods -> clear",
+    "Checked source rule 52/52: unstable_api_usage -> clear",
+    "[clear] tailwind_default_purple_gradient - No default Tailwind purple/pink gradient classes found in fetched source.",
+    "[FLAGGED] rounded_full_tailwind_buttons - JSX source uses rounded-full, confirming pill radius came from Tailwind classes.",
+    "[FLAGGED] systemic_backdrop_blur - backdrop-blur appears in multiple files, suggesting systemic glassmorphism.",
+    "[FLAGGED] missing_tailwind_design_tokens - Tailwind classes are used, but no custom color tokens were found in tailwind config.",
+    "[FLAGGED] default_inter_or_font_sans - Source uses font-sans, Inter, or Geist without evidence of a custom font setup.",
+    "[clear] stock_shadcn_imports_unmodified - No near-default shadcn/ui primitive usage was confirmed.",
+    "[clear] transition_all_default - No default transition-all pattern found.",
+    "[clear] outline_none_without_focus_replacement - No unsafe outline-none usage confirmed.",
+    "[FLAGGED] no_reduced_motion_source - No prefers-reduced-motion media query or equivalent source handling was found.",
+    "[clear] production_placeholders - No obvious production placeholders or debug logs found.",
+    "[clear] magic_zindex_source - No magic z-index values found in source.",
+    "[clear] unoptimized_images_source - No unoptimized raw <img> usage confirmed in a Next.js frontend.",
+    "[clear] uniform_icon_size_source - Icon sizing varies or could not be confirmed from the scanned source.",
+    "[clear] barrel_index_exports - Found index/barrel exports in source files.",
+    "[clear] has_test_or_story_files - Found test or story files indicating component testing/stories.",
+    "[FLAGGED] many_default_exports - Default exports present in source files.",
+    "[clear] custom_hooks_present - Custom hooks (useXYZ) were detected in source.",
+    "[clear] potential_prop_drilling - Found component instances with many props in JSX suggesting prop drilling.",
+    "[clear] any_type_usage - Found uses of `any` in TypeScript source.",
+    "[FLAGGED] missing_useeffect_deps - Detected useEffect calls that likely lack dependency arrays.",
+    "[clear] missing_globals_css - globals.css present but no CSS custom properties found.",
+    "[FLAGGED] css_custom_properties_present - CSS custom properties were found in source.",
+    "[FLAGGED] tailwind_spacing_scale_missing - Tailwind classes used but no spacing scale found in tailwind.config.",
+    "[clear] tailwind_extend_spacing - tailwind.config extends spacing scale.",
+    "[clear] at_layer_usage - Found @layer rules in CSS or config.",
+    "[FLAGGED] inline_keyframes_present - Inline keyframes present in CSS/source.",
+    "[FLAGGED] duplicate_classname_patterns - Found duplicate className patterns in files.",
+    "[clear] unminified_build_artifacts - Found build artifact files that look unminified or bundles.",
+    "[FLAGGED] large_component_files - Found very large source files (>20k chars).",
+    "[clear] deep_component_folder_nesting - Found files nested deeply in directories (>=6 levels).",
+    "[FLAGGED] missing_eslint_config - No ESLint configuration file found.",
+    "[FLAGGED] missing_prettier_config - No Prettier configuration file found.",
+    "[FLAGGED] env_example_missing - No .env.example or .env.sample found in repository.",
+    "[FLAGGED] pinned_dependencies_absent - package.json contains semver ranges like ^ or ~ indicating unpinned deps.",
+    "[clear] missing_readme - No README.md found in repository.",
+    "[FLAGGED] lacks_storybook_config - No .storybook or storybook config found.",
+    "[clear] many_anys_count - Found 0 uses of `any` in TS files.",
+    "[clear] many_todos_count - Found 0 TODO markers in source.",
+    "[FLAGGED] missing_license - No LICENSE file found in repository.",
+    "[clear] missing_gitignore - No .gitignore file found in repository.",
+    "[clear] uses_eval_or_newfunction - Found use of eval or new Function in source.",
+    "[FLAGGED] inline_styles_usage - Found inline style={{ ... }} usage in JSX.",
+    "[clear] many_inline_images - Found 0 raw <img> usages in JSX files.",
+    "[clear] missing_img_alt - Found <img> elements without alt attributes.",
+    "[FLAGGED] multiple_package_managers - Found multiple package manager lockfiles (yarn.lock, package-lock.json, pnpm-lock.yaml).",
+    "[clear] large_barrel_export_index - Found barrel/index exports exporting many symbols.",
+    "[clear] missing_tsconfig - No tsconfig.json found while TypeScript files exist.",
+    "[FLAGGED] uses_window_global_state - Detected usage of window.<var> in source.",
+    "[FLAGGED] direct_dom_manipulation - Found document.querySelector / innerHTML / appendChild usage.",
+    "[clear] uses_next_router_or_router_fallback - Detected next/router or useRouter usage.",
+    "[clear] deprecated_lifecycle_methods - Found deprecated React component lifecycle methods.",
+    "[clear] unstable_api_usage - Found keywords like unstable_/experimental or next/experimental imports.",
+    "Computed raw source code score 160.8/396.",
+    "Applied ATS source review via MODEL_ATS_GROQ_LLAMA31_8B to 14 borderline findings.",
+    "Applied ATS source review via MODEL_ATS_GROQ_LLAMA31_8B to 14 borderline findings.",
+    "Added normalized source code score 41/100 (raw 160.8/396); rendered vibe score 18, final vibe score 28."
+  ],
+  "findings": [
+    {
+      "id": "purple_accent",
+      "name": "Purple/violet default accent color",
+      "tier": 1,
+      "bucket": "origin",
+      "weight": 15.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "The dominant accent colors are a vibrant blue and an orange/gold, not purple or violet.",
+      "fix": "Use a brand-specific accent palette instead of default violet.",
+      "evidence": {
+        "colors": [
+          "rgb(15, 23, 42)",
+          "rgb(255, 255, 255)",
+          "rgb(14, 165, 233)",
+          "rgb(255, 107, 0)",
+          "lab(47.7841 -0.393182 -10.0268)",
+          "rgb(248, 250, 252)",
+          "lab(35.6337 -1.58697 -10.8425)",
+          "oklab(0.999994 0.0000455677 0.0000200868 / 0.8)",
+          "oklab(0.999994 0.0000455677 0.0000200868 / 0.7)",
+          "oklab(0.999994 0.0000455677 0.0000200868 / 0.6)",
+          "oklab(0.684655 -0.0798152 -0.124417 / 0.2)"
+        ],
+        "override_source": "vision"
+      }
+    },
+    {
+      "id": "pill_buttons",
+      "name": "Pill-shaped buttons everywhere",
+      "tier": 1,
+      "bucket": "origin",
+      "weight": 15.0,
+      "flagged": true,
+      "confidence": 1.0,
+      "reason": "Buttons like 'APPLY NOW' have significantly rounded corners, appearing pill-shaped.",
+      "fix": "Reduce button radius to a deliberate component radius.",
+      "evidence": {
+        "pill_count": 0,
+        "button_count": 8,
+        "override_source": "vision"
+      }
+    },
+    {
+      "id": "mesh_gradient",
+      "name": "Mesh gradient / aurora hero background",
+      "tier": 1,
+      "bucket": "origin",
+      "weight": 15.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "The hero background features a subtle light blue grid pattern, not a mesh gradient or aurora blob.",
+      "fix": "Replace generic aurora treatment with brand-specific art direction.",
+      "evidence": {
+        "radial_gradient_count": 0,
+        "override_source": "vision"
+      }
+    },
+    {
+      "id": "glassmorphism",
+      "name": "Glassmorphism cards",
+      "tier": 1,
+      "bucket": "origin",
+      "weight": 15.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Cards have solid white backgrounds and soft shadows, with no frosted glass or backdrop blur effect present.",
+      "fix": "Use solid surfaces or apply glass sparingly with clear hierarchy.",
+      "evidence": {
+        "count": 10,
+        "override_source": "vision"
+      }
+    },
+    {
+      "id": "dark_only",
+      "name": "Dark mode default with no light variant",
+      "tier": 1,
+      "bucket": "origin",
+      "weight": 15.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Dark-only pattern not confirmed.",
+      "fix": "Provide an intentional light variant or make dark mode feel fully resolved.",
+      "evidence": {
+        "backgroundColor": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "id": "vibe_builder_domain",
+      "name": "Hosted on a vibe-builder deployment domain",
+      "tier": 1,
+      "bucket": "origin",
+      "weight": 15.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No known vibe-builder deployment domain detected.",
+      "fix": "Move production sites to an owned domain and verify design provenance.",
+      "evidence": {
+        "host": "narayanaschoolctr.vercel.app",
+        "matched_domain": null
+      }
+    },
+    {
+      "id": "gradient_text",
+      "name": "Gradient hero headline text",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "The main headline 'ASIA'S LARGEST EDUCATIONAL INSTITUTION' and other headings use solid colors, not gradients.",
+      "fix": "Use plain display type or a more restrained brand treatment.",
+      "evidence": {
+        "count": 0,
+        "override_source": "vision"
+      }
+    },
+    {
+      "id": "canvas_webgl_hero_background",
+      "name": "Hero background is canvas-rendered or WebGL instead of CSS",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "The hero background is a static, subtle grid pattern, showing no visual signs of being rendered via Canvas/WebGL.",
+      "fix": "Use a CSS background or intentionally document the canvas/WebGL treatment.",
+      "evidence": {
+        "heroCanvasBackground": false,
+        "heroWebGLBackground": false,
+        "override_source": "vision"
+      }
+    },
+    {
+      "id": "canvas_rendered_ui",
+      "name": "Interactive UI is rendered within a canvas layer",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "All visible UI elements appear to be standard HTML/CSS components, with no discernible parts rendered within a canvas layer.",
+      "fix": "Render interactive UI with DOM elements instead of placing it inside a canvas layer.",
+      "evidence": {
+        "canvasRenderedInteractiveCount": 0,
+        "override_source": "vision"
+      }
+    },
+    {
+      "id": "bento_grid",
+      "name": "Bento grid feature section",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": true,
+      "confidence": 1.0,
+      "reason": "Sections like 'THE 4CS ROADMAP', 'ACADEMIC PROGRAMMES', and 'TECHNOLOGY & INNOVATION' display content in neatly aligned, distinct card-based grid layouts, characteristic of a bento grid.",
+      "fix": "Break the grid rhythm with content-led layout variation.",
+      "evidence": {
+        "override_source": "vision"
+      }
+    },
+    {
+      "id": "beta_badge",
+      "name": "Floating beta badge above hero",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": true,
+      "confidence": 1.0,
+      "reason": "A light blue rectangular badge with 'SINCE 1979' is positioned centrally above the main hero heading.",
+      "fix": "Use context-specific launch/status copy or remove the badge.",
+      "evidence": {
+        "override_source": "vision"
+      }
+    },
+    {
+      "id": "dot_grid_overlay",
+      "name": "Dot/grid pattern overlay",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No dot/grid overlay detected.",
+      "fix": "Replace decorative overlays with purposeful imagery or whitespace.",
+      "evidence": {}
+    },
+    {
+      "id": "cta_glow",
+      "name": "Glow/halo CTA shadow",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No CTA glow shadows detected.",
+      "fix": "Use normal elevation and hover states instead of default glow.",
+      "evidence": {
+        "count": 0
+      }
+    },
+    {
+      "id": "repeated_section_rhythm",
+      "name": "Repeated section rhythm",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Vary section composition based on content priority.",
+      "evidence": {}
+    },
+    {
+      "id": "inter_only",
+      "name": "Inter or Geist as the only font",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Typography is not Inter/Geist-only.",
+      "fix": "Add a deliberate display/body pairing or customize typography.",
+      "evidence": {
+        "fonts": [
+          "Lora",
+          "Playfair Display"
+        ]
+      }
+    },
+    {
+      "id": "no_responsive_breakpoints",
+      "name": "Layout does not meaningfully change between 375px and 1440px viewport",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Ensure responsive breakpoints adapt layout across viewports.",
+      "evidence": {}
+    },
+    {
+      "id": "wide_color_palette",
+      "name": "Site uses 8+ distinct computed colors with no token system",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Consolidate on a token palette and reduce redundant computed colors.",
+      "evidence": {}
+    },
+    {
+      "id": "missing_meta_og",
+      "name": "No meta description, OG title, or OG image",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add meta description and Open Graph metadata.",
+      "evidence": {}
+    },
+    {
+      "id": "font_weight_only_400_700",
+      "name": "Only font-weight 400 and 700 used",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Introduce intermediate font weights for typographic hierarchy.",
+      "evidence": {}
+    },
+    {
+      "id": "heading_size_non_proportional",
+      "name": "Heading sizes not on a modular scale",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Adjust headings to a consistent modular scale.",
+      "evidence": {}
+    },
+    {
+      "id": "no_card_hover",
+      "name": "No hover states on feature cards",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Card hover absence not confirmed.",
+      "fix": "Add subtle hover feedback to interactive cards.",
+      "evidence": {
+        "cards": 40,
+        "without_hover_feedback": 14,
+        "without_transition": 12
+      }
+    },
+    {
+      "id": "uniform_icons",
+      "name": "Icons all same weight, size, and color",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Vary icon treatment where hierarchy requires it.",
+      "evidence": {}
+    },
+    {
+      "id": "generic_ctas",
+      "name": "Generic CTA copy",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "CTA copy is not strongly generic.",
+      "fix": "Replace generic CTAs with outcome-specific action text.",
+      "evidence": {
+        "matches": []
+      }
+    },
+    {
+      "id": "no_scroll_animations",
+      "name": "No scroll-triggered entrance animations",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add purposeful motion only where it clarifies hierarchy.",
+      "evidence": {}
+    },
+    {
+      "id": "text_logo",
+      "name": "Logo is just bold product name",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Text-only logo not confirmed.",
+      "fix": "Add a distinctive mark, wordmark treatment, or custom lockup.",
+      "evidence": {}
+    },
+    {
+      "id": "all_centered_headings",
+      "name": "Every heading is centered",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": true,
+      "confidence": 0.5,
+      "reason": "Almost all major section headings across the page are consistently centered.",
+      "fix": "Mix left-aligned and centered sections based on content.",
+      "evidence": {
+        "centered": 14,
+        "heading_count": 54,
+        "override_source": "vision_additional_pattern"
+      }
+    },
+    {
+      "id": "spacing_rhythm_off",
+      "name": "Inconsistent spacing rhythm",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Spacing rhythm does not look obviously broken.",
+      "fix": "Normalize spacing to an 8px rhythm or chosen spacing scale.",
+      "evidence": {
+        "spacings": [
+          80,
+          96,
+          40,
+          40,
+          96,
+          32,
+          32,
+          40,
+          40,
+          40,
+          96,
+          40
+        ],
+        "off_grid": []
+      }
+    },
+    {
+      "id": "no_loading_states",
+      "name": "No loading/skeleton states",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Design loading states for async areas.",
+      "evidence": {}
+    },
+    {
+      "id": "too_many_dividers",
+      "name": "Dividers between every section",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Divider overuse not detected.",
+      "fix": "Use whitespace and background shifts instead of constant borders.",
+      "evidence": {
+        "bordered_sections": 38,
+        "section_count": 55
+      }
+    },
+    {
+      "id": "no_pointer_cards",
+      "name": "No cursor pointer on clickable cards",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Clickable card cursor issue not detected.",
+      "fix": "Add cursor and focus/hover states to clickable cards.",
+      "evidence": {
+        "clickable_cards": 0,
+        "missing_pointer": 0
+      }
+    },
+    {
+      "id": "muted_social_proof",
+      "name": "Grayscale low-opacity social proof logos",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Tune logo treatment so proof still feels credible.",
+      "evidence": {}
+    },
+    {
+      "id": "generic_footer",
+      "name": "Footer has four identical link columns",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Shape footer navigation around real product priorities.",
+      "evidence": {}
+    },
+    {
+      "id": "dynamic_injected_styles",
+      "name": "Inline style values appear dynamically injected at runtime",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.5,
+      "reason": "No complex animations or advanced visual effects (gradients, blurs, highly dynamic opacities) are present that would visually necessitate dynamically injected inline styles; standard CSS hovers are observed.",
+      "fix": "Move repeated gradients, blur, or opacity decisions into stable CSS or document the runtime injection.",
+      "evidence": {
+        "dynamicStyleInjectionCount": 55,
+        "override_source": "vision"
+      }
+    },
+    {
+      "id": "no_shadow_system",
+      "name": "No layered elevation system (all flat or one glow)",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Introduce layered elevation and subtle shadows for hierarchy.",
+      "evidence": {}
+    },
+    {
+      "id": "card_padding_inconsistent",
+      "name": "Internal card padding varies across similar cards",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Standardize card padding via tokens.",
+      "evidence": {}
+    },
+    {
+      "id": "no_semantic_html",
+      "name": "Interactive elements use div/span instead of semantic tags",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Use semantic elements like button/nav/main/section.",
+      "evidence": {}
+    },
+    {
+      "id": "z_index_magic_numbers",
+      "name": "Computed stacking contexts use arbitrary magic numbers",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Refactor stacking contexts to use a scale or tokens.",
+      "evidence": {}
+    },
+    {
+      "id": "no_reduced_motion",
+      "name": "Animations without prefers-reduced-motion handling",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Respect prefers-reduced-motion for nonessential animations.",
+      "evidence": {}
+    },
+    {
+      "id": "image_no_aspect_ratio",
+      "name": "Images have no aspect-ratio set",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Set aspect-ratio or intrinsic size to avoid layout shift.",
+      "evidence": {}
+    },
+    {
+      "id": "stock_image_pattern",
+      "name": "Images match Unsplash/stock patterns",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Prefer original product/team/customer imagery.",
+      "evidence": {}
+    },
+    {
+      "id": "color_contrast_borderline",
+      "name": "Contrast passes but is borderline and feels wrong",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Increase contrast and tune surface hierarchy.",
+      "evidence": {}
+    },
+    {
+      "id": "missing_focus_states",
+      "name": "No focus states on inputs",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": true,
+      "confidence": 0.85,
+      "reason": "5/5 inputs lack visible focus indicators.",
+      "fix": "Add visible focus rings with accessible contrast.",
+      "evidence": {
+        "inputs": 5,
+        "missing": 5,
+        "override_source": "rules"
+      }
+    },
+    {
+      "id": "placeholder_only_labels",
+      "name": "Placeholder disappears on focus",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": true,
+      "confidence": 0.7,
+      "reason": "Most inputs rely on placeholders without persistent labels.",
+      "fix": "Use persistent labels or floating labels.",
+      "evidence": {
+        "placeholder_only": 4,
+        "inputs": 5,
+        "override_source": "rules"
+      }
+    },
+    {
+      "id": "missing_active_state",
+      "name": "Button has no active/pressed state",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Button pressed-state feedback appears present.",
+      "fix": "Add :active scale, brightness, or pressed-state feedback.",
+      "evidence": {
+        "buttons": 2,
+        "missing": 0,
+        "probe_based": true
+      }
+    },
+    {
+      "id": "tight_body_line_height",
+      "name": "Body copy line-height too tight",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Body line-height is not too tight.",
+      "fix": "Set body copy line-height around 1.6 to 1.75.",
+      "evidence": {
+        "line_height_ratio": 1.5
+      }
+    },
+    {
+      "id": "uppercase_no_tracking",
+      "name": "Uppercase labels have zero letter spacing",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Uppercase tracking issue not detected.",
+      "fix": "Add letter-spacing to uppercase labels.",
+      "evidence": {
+        "uppercase_labels": 39,
+        "cramped": 14
+      }
+    },
+    {
+      "id": "bad_reading_width",
+      "name": "Reading width too wide or narrow",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": true,
+      "confidence": 0.6,
+      "reason": "Paragraph widths look uncomfortable for reading.",
+      "fix": "Constrain paragraph measure to comfortable line lengths.",
+      "evidence": {
+        "widths": [
+          1232,
+          896,
+          342,
+          342,
+          584,
+          584,
+          254,
+          297,
+          297,
+          297,
+          896,
+          396
+        ],
+        "override_source": "rules"
+      }
+    },
+    {
+      "id": "missing_transitions",
+      "name": "No transition on theme/state changes",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Interactive transitions are present.",
+      "fix": "Add transitions to interactive state changes.",
+      "evidence": {
+        "interactive": 36,
+        "missing": 15
+      }
+    },
+    {
+      "id": "no_nav_active",
+      "name": "Nav has no active/current indicator",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": true,
+      "confidence": 0.55,
+      "reason": "Navigation links have no obvious active/current state.",
+      "fix": "Add active state for the current route or section.",
+      "evidence": {
+        "nav_links": 10,
+        "active": 0,
+        "override_source": "rules"
+      }
+    },
+    {
+      "id": "linear_animations",
+      "name": "Animations are linear",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No linear animation timing detected.",
+      "fix": "Use a custom cubic-bezier easing curve.",
+      "evidence": {}
+    },
+    {
+      "id": "default_scrollbar",
+      "name": "Scrollbar is browser default",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Style scrollbars when they are visible in the product surface.",
+      "evidence": {}
+    },
+    {
+      "id": "default_selection",
+      "name": "Selection color is browser default blue",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add branded ::selection colors.",
+      "evidence": {}
+    },
+    {
+      "id": "no_empty_states",
+      "name": "No empty state design",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Design empty states for data-driven components.",
+      "evidence": {}
+    },
+    {
+      "id": "native_title_tooltips",
+      "name": "Tooltips use native title attribute",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No native title tooltips detected.",
+      "fix": "Replace title-only tooltips with accessible custom tooltips.",
+      "evidence": {
+        "count": 0
+      }
+    },
+    {
+      "id": "no_fluid_type",
+      "name": "Font size does not scale on mobile",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": true,
+      "confidence": 0.4,
+      "reason": "No fluid heading type tokens detected in computed snapshot.",
+      "fix": "Use responsive type tokens or clamp().",
+      "evidence": {
+        "override_source": "rules"
+      }
+    },
+    {
+      "id": "weak_disabled_states",
+      "name": "Disabled states are just opacity",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Weak disabled-state pattern not detected.",
+      "fix": "Define disabled color, cursor, and interaction behavior.",
+      "evidence": {
+        "disabled": 0,
+        "weak": 0
+      }
+    },
+    {
+      "id": "poor_alt_text",
+      "name": "Images have no meaningful alt text",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Image alt text does not look broadly weak.",
+      "fix": "Write useful alt text or mark decorative images empty.",
+      "evidence": {
+        "images": 2,
+        "poor": 0
+      }
+    },
+    {
+      "id": "link_underline_static",
+      "name": "Link underlines always on or off",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": true,
+      "confidence": 0.45,
+      "reason": "Links appear uniformly underlined or uniformly plain.",
+      "fix": "Add a link hover/focus underline transition.",
+      "evidence": {
+        "underlined": 0,
+        "links": 28,
+        "override_source": "rules"
+      }
+    },
+    {
+      "id": "no_custom_404",
+      "name": "No custom 404 page",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add a branded 404 route.",
+      "evidence": {}
+    },
+    {
+      "id": "unconstrained_paragraphs",
+      "name": "Paragraph lines too long",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": true,
+      "confidence": 0.7,
+      "reason": "Some paragraph lines exceed comfortable reading width.",
+      "fix": "Constrain paragraph max-width.",
+      "evidence": {
+        "long_widths": [
+          1232
+        ],
+        "override_source": "rules"
+      }
+    },
+    {
+      "id": "no_favicon",
+      "name": "No favicon",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Favicon present.",
+      "fix": "Add a real favicon and app icons.",
+      "evidence": {}
+    },
+    {
+      "id": "modal_focus_not_trapped",
+      "name": "Modals do not trap focus",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Use a modal primitive that traps focus.",
+      "evidence": {}
+    },
+    {
+      "id": "no_page_transition",
+      "name": "No page transition between routes",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add route transitions only where they improve continuity.",
+      "evidence": {}
+    },
+    {
+      "id": "autofill_dark_breaks",
+      "name": "Input autofill breaks dark mode",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Override webkit autofill colors for dark inputs.",
+      "evidence": {}
+    },
+    {
+      "id": "no_word_break",
+      "name": "Long words and URLs overflow on narrow viewports",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add word-break/overflow-wrap rules.",
+      "evidence": {}
+    },
+    {
+      "id": "border_color_hardcoded",
+      "name": "Border colors hardcoded hex values",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Use CSS variables or opacity tokens for borders.",
+      "evidence": {}
+    },
+    {
+      "id": "body_bg_not_extended",
+      "name": "Background color stops at content end",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Extend background to full viewport height.",
+      "evidence": {}
+    },
+    {
+      "id": "no_print_styles",
+      "name": "No @media print styles",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add print-specific style rules.",
+      "evidence": {}
+    },
+    {
+      "id": "missing_lang_attribute",
+      "name": "HTML missing lang attribute",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add a lang attribute to the html element.",
+      "evidence": {}
+    },
+    {
+      "id": "no_skip_link",
+      "name": "No skip-to-content link for keyboard users",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add an accessible skip-link.",
+      "evidence": {}
+    },
+    {
+      "id": "icon_only_buttons_no_label",
+      "name": "Icon-only buttons missing aria-label",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Provide aria-label or visible text for icon buttons.",
+      "evidence": {}
+    },
+    {
+      "id": "input_no_autocomplete",
+      "name": "Form inputs missing autocomplete attributes",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add autocomplete attributes.",
+      "evidence": {}
+    },
+    {
+      "id": "missing_error_states",
+      "name": "Form fields show no error state",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add visual and textual error states.",
+      "evidence": {}
+    },
+    {
+      "id": "no_success_feedback",
+      "name": "Form submission shows no success confirmation",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Show success messages or confirmations.",
+      "evidence": {}
+    },
+    {
+      "id": "animation_no_will_change",
+      "name": "Animated elements missing will-change hint",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add will-change where appropriate to hint the compositor.",
+      "evidence": {}
+    },
+    {
+      "id": "tap_target_too_small",
+      "name": "Interactive elements under recommended touch size",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Increase tap targets to 44\u00d744px.",
+      "evidence": {}
+    },
+    {
+      "id": "overflow_hidden_clipping",
+      "name": "overflow:hidden clips content unexpectedly on mobile",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Audit and remove destructive overflow rules.",
+      "evidence": {}
+    },
+    {
+      "id": "hardcoded_px_spacing",
+      "name": "Hardcoded px spacing everywhere",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Use rem/spacing tokens instead of px.",
+      "evidence": {}
+    },
+    {
+      "id": "no_focus_visible_distinction",
+      "name": "No distinction between :focus and :focus-visible",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Use :focus-visible to avoid mouse-triggered focus rings.",
+      "evidence": {}
+    },
+    {
+      "id": "image_lazy_load_missing",
+      "name": "Below-fold images missing loading=\"lazy\"",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add lazy loading to below-the-fold images.",
+      "evidence": {}
+    },
+    {
+      "id": "no_viewport_meta",
+      "name": "Missing or incomplete viewport meta tag",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add a responsive viewport meta tag.",
+      "evidence": {}
+    },
+    {
+      "id": "color_scheme_meta_missing",
+      "name": "No color-scheme meta tag",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add color-scheme meta to hint light/dark UI.",
+      "evidence": {}
+    },
+    {
+      "id": "heading_hierarchy_skipped",
+      "name": "Heading levels skip (e.g. h1 \u2192 h3)",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Fix the document outline and heading hierarchy.",
+      "evidence": {}
+    }
+  ]
+}

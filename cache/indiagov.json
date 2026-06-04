@@ -1,0 +1,1145 @@
+{
+  "url": "https://india.gov.in/",
+  "title": "Access Denied",
+  "score": {
+    "vibe_score": 6,
+    "humanness_score": 94,
+    "base_score": 11.55,
+    "cluster_bonus": 10,
+    "tier_counts": {
+      "1": 1,
+      "2": 0,
+      "3": 0,
+      "4": 1
+    },
+    "category": "Human Built",
+    "score_mode": "deterministic",
+    "llm_adjustment": 0.0,
+    "rendered_vibe_score": null,
+    "source_code_score": 0
+  },
+  "screenshot_path": "reports\\data\\cd5c6fc48dba\\main.png",
+  "scan_metadata": {
+    "section_count": 0,
+    "component_count": 0,
+    "verified_components": 0,
+    "style_verified_components": 0,
+    "synthetic_components": 0,
+    "unverified_components": 0,
+    "interaction_coverage_ratio": 0.0,
+    "artifact_coverage_ratio": 0.0,
+    "scan_mode": "live_only"
+  },
+  "agent_notes": [
+    "Skipped smart scoring because deterministic score was outside the 25-65 gate, no vision override was requested, and no hybrid signal triggers were found.",
+    "Site scan completed in 13.25s (13246 ms)."
+  ],
+  "smart_summary": null,
+  "archetype_label": null,
+  "dynamic_findings": [],
+  "llm_evidence": {},
+  "source_code": {},
+  "scan_live_log": [
+    "[humanonn] Site scan timer started for https://india.gov.in/",
+    "[humanonn] Starting crawl for https://india.gov.in/",
+    "[humanonn] Main screenshot target: reports\\data\\cd5c6fc48dba\\main.png",
+    "[humanonn] Legacy screenshot target: reports\\screenshots\\cd5c6fc48dba.png",
+    "[humanonn] Launching Chromium (headless=True)",
+    "[humanonn] Navigating to page with staged readiness checks",
+    "[humanonn] response error: 403 https://www.india.gov.in/",
+    "[humanonn] browser console [error]: Failed to load resource: the server responded with a status of 403 ()",
+    "[humanonn] Navigation reached DOMContentLoaded",
+    "[humanonn] Page reached load state",
+    "[humanonn] Waiting for page settle: post-navigation",
+    "[humanonn] Performing scroll-to-bottom render pass",
+    "[humanonn] Waiting for page settle: after-scroll-to-bottom",
+    "[humanonn] Navigation complete: https://www.india.gov.in/",
+    "[humanonn] Discovering visible sections",
+    "[humanonn] Section candidates found: 0",
+    "[humanonn] Overview pass: scrolling section by section to trigger lazy rendering",
+    "[humanonn] Waiting for page settle: after-overview",
+    "[humanonn] Waiting for page settle: before-main-screenshot",
+    "[humanonn] Saved main page overview screenshots",
+    "[humanonn] Artifact manifest written to reports\\data\\cd5c6fc48dba\\manifest.json",
+    "[humanonn] Waiting for page settle: before-snapshot",
+    "[humanonn] Extracting computed styles, structure, and content snapshot",
+    "[humanonn] Page title: Access Denied",
+    "[humanonn] Found 0 buttons, 0 inputs, 0 links, 1 headings, 0 sections, 0 images",
+    "[humanonn] Fonts detected: Times New Roman",
+    "[humanonn] Sample colors: rgb(0, 0, 0)",
+    "[humanonn] Sample headings: Access Denied",
+    "[humanonn] Interaction effects recorded: buttons hover 0, links hover 0, cards hover 0, buttons active 0",
+    "[humanonn] Artifacts stored in: reports\\data\\cd5c6fc48dba",
+    "[humanonn] Body background: rgba(0, 0, 0, 0) | Hero background image present: False",
+    "[humanonn] Closed Chromium session",
+    "[humanonn] Evaluating rule-based signal set",
+    "[humanonn] Rule evaluation complete: 2/83 signals flagged, vibe score 6",
+    "[humanonn] Building deterministic baseline before smart scoring",
+    "[humanonn] Evaluating rule-based signal set",
+    "[humanonn] Rule evaluation complete: 2/83 signals flagged, vibe score 6",
+    "[humanonn] Running smart LLM scoring pipeline",
+    "[humanonn] Site scan completed in 13.25s (13246 ms) for https://india.gov.in/"
+  ],
+  "scan_code_log": [],
+  "findings": [
+    {
+      "id": "purple_accent",
+      "name": "Purple/violet default accent color",
+      "tier": 1,
+      "bucket": "origin",
+      "weight": 15.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No dominant default purple accent detected.",
+      "fix": "Use a brand-specific accent palette instead of default violet.",
+      "evidence": {
+        "colors": [
+          "rgb(0, 0, 0)"
+        ]
+      }
+    },
+    {
+      "id": "pill_buttons",
+      "name": "Pill-shaped buttons everywhere",
+      "tier": 1,
+      "bucket": "origin",
+      "weight": 15.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No buttons found.",
+      "fix": "Reduce button radius to a deliberate component radius.",
+      "evidence": {}
+    },
+    {
+      "id": "mesh_gradient",
+      "name": "Mesh gradient / aurora hero background",
+      "tier": 1,
+      "bucket": "origin",
+      "weight": 15.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No mesh/aurora gradient background detected.",
+      "fix": "Replace generic aurora treatment with brand-specific art direction.",
+      "evidence": {
+        "radial_gradient_count": 0
+      }
+    },
+    {
+      "id": "glassmorphism",
+      "name": "Glassmorphism cards",
+      "tier": 1,
+      "bucket": "origin",
+      "weight": 15.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No backdrop-filter blur detected.",
+      "fix": "Use solid surfaces or apply glass sparingly with clear hierarchy.",
+      "evidence": {
+        "count": 0
+      }
+    },
+    {
+      "id": "dark_only",
+      "name": "Dark mode default with no light variant",
+      "tier": 1,
+      "bucket": "origin",
+      "weight": 15.0,
+      "flagged": true,
+      "confidence": 0.65,
+      "reason": "Body background is dark and no obvious light/theme toggle was found.",
+      "fix": "Provide an intentional light variant or make dark mode feel fully resolved.",
+      "evidence": {
+        "backgroundColor": "rgba(0, 0, 0, 0)"
+      }
+    },
+    {
+      "id": "vibe_builder_domain",
+      "name": "Hosted on a vibe-builder deployment domain",
+      "tier": 1,
+      "bucket": "origin",
+      "weight": 15.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No known vibe-builder deployment domain detected.",
+      "fix": "Move production sites to an owned domain and verify design provenance.",
+      "evidence": {
+        "host": "india.gov.in",
+        "matched_domain": null
+      }
+    },
+    {
+      "id": "gradient_text",
+      "name": "Gradient hero headline text",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No gradient heading text detected.",
+      "fix": "Use plain display type or a more restrained brand treatment.",
+      "evidence": {
+        "count": 0
+      }
+    },
+    {
+      "id": "canvas_webgl_hero_background",
+      "name": "Hero background is canvas-rendered or WebGL instead of CSS",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No canvas/WebGL hero background detected.",
+      "fix": "Use a CSS background or intentionally document the canvas/WebGL treatment.",
+      "evidence": {
+        "heroCanvasBackground": false,
+        "heroWebGLBackground": false
+      }
+    },
+    {
+      "id": "canvas_rendered_ui",
+      "name": "Interactive UI is rendered within a canvas layer",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No canvas-rendered interactive UI detected.",
+      "fix": "Render interactive UI with DOM elements instead of placing it inside a canvas layer.",
+      "evidence": {
+        "canvasRenderedInteractiveCount": 0
+      }
+    },
+    {
+      "id": "bento_grid",
+      "name": "Bento grid feature section",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Break the grid rhythm with content-led layout variation.",
+      "evidence": {}
+    },
+    {
+      "id": "beta_badge",
+      "name": "Floating beta badge above hero",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No beta badge copy detected.",
+      "fix": "Use context-specific launch/status copy or remove the badge.",
+      "evidence": {}
+    },
+    {
+      "id": "dot_grid_overlay",
+      "name": "Dot/grid pattern overlay",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No dot/grid overlay detected.",
+      "fix": "Replace decorative overlays with purposeful imagery or whitespace.",
+      "evidence": {}
+    },
+    {
+      "id": "cta_glow",
+      "name": "Glow/halo CTA shadow",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No CTA glow shadows detected.",
+      "fix": "Use normal elevation and hover states instead of default glow.",
+      "evidence": {
+        "count": 0
+      }
+    },
+    {
+      "id": "repeated_section_rhythm",
+      "name": "Repeated section rhythm",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Vary section composition based on content priority.",
+      "evidence": {}
+    },
+    {
+      "id": "inter_only",
+      "name": "Inter or Geist as the only font",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Typography is not Inter/Geist-only.",
+      "fix": "Add a deliberate display/body pairing or customize typography.",
+      "evidence": {
+        "fonts": [
+          "Times New Roman"
+        ]
+      }
+    },
+    {
+      "id": "no_responsive_breakpoints",
+      "name": "Layout does not meaningfully change between 375px and 1440px viewport",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Ensure responsive breakpoints adapt layout across viewports.",
+      "evidence": {}
+    },
+    {
+      "id": "wide_color_palette",
+      "name": "Site uses 8+ distinct computed colors with no token system",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Consolidate on a token palette and reduce redundant computed colors.",
+      "evidence": {}
+    },
+    {
+      "id": "missing_meta_og",
+      "name": "No meta description, OG title, or OG image",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add meta description and Open Graph metadata.",
+      "evidence": {}
+    },
+    {
+      "id": "font_weight_only_400_700",
+      "name": "Only font-weight 400 and 700 used",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Introduce intermediate font weights for typographic hierarchy.",
+      "evidence": {}
+    },
+    {
+      "id": "heading_size_non_proportional",
+      "name": "Heading sizes not on a modular scale",
+      "tier": 2,
+      "bucket": "origin",
+      "weight": 9.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Adjust headings to a consistent modular scale.",
+      "evidence": {}
+    },
+    {
+      "id": "no_card_hover",
+      "name": "No hover states on feature cards",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Card hover absence not confirmed.",
+      "fix": "Add subtle hover feedback to interactive cards.",
+      "evidence": {
+        "cards": 0,
+        "without_hover_feedback": 0,
+        "without_transition": 0
+      }
+    },
+    {
+      "id": "uniform_icons",
+      "name": "Icons all same weight, size, and color",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Vary icon treatment where hierarchy requires it.",
+      "evidence": {}
+    },
+    {
+      "id": "generic_ctas",
+      "name": "Generic CTA copy",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "CTA copy is not strongly generic.",
+      "fix": "Replace generic CTAs with outcome-specific action text.",
+      "evidence": {
+        "matches": []
+      }
+    },
+    {
+      "id": "no_scroll_animations",
+      "name": "No scroll-triggered entrance animations",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add purposeful motion only where it clarifies hierarchy.",
+      "evidence": {}
+    },
+    {
+      "id": "text_logo",
+      "name": "Logo is just bold product name",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Text-only logo not confirmed.",
+      "fix": "Add a distinctive mark, wordmark treatment, or custom lockup.",
+      "evidence": {}
+    },
+    {
+      "id": "all_centered_headings",
+      "name": "Every heading is centered",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Not enough headings to judge alignment rhythm.",
+      "fix": "Mix left-aligned and centered sections based on content.",
+      "evidence": {}
+    },
+    {
+      "id": "spacing_rhythm_off",
+      "name": "Inconsistent spacing rhythm",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Spacing rhythm does not look obviously broken.",
+      "fix": "Normalize spacing to an 8px rhythm or chosen spacing scale.",
+      "evidence": {
+        "spacings": [],
+        "off_grid": []
+      }
+    },
+    {
+      "id": "no_loading_states",
+      "name": "No loading/skeleton states",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Design loading states for async areas.",
+      "evidence": {}
+    },
+    {
+      "id": "too_many_dividers",
+      "name": "Dividers between every section",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Divider overuse not detected.",
+      "fix": "Use whitespace and background shifts instead of constant borders.",
+      "evidence": {
+        "bordered_sections": 0,
+        "section_count": 0
+      }
+    },
+    {
+      "id": "no_pointer_cards",
+      "name": "No cursor pointer on clickable cards",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Clickable card cursor issue not detected.",
+      "fix": "Add cursor and focus/hover states to clickable cards.",
+      "evidence": {
+        "clickable_cards": 0,
+        "missing_pointer": 0
+      }
+    },
+    {
+      "id": "muted_social_proof",
+      "name": "Grayscale low-opacity social proof logos",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Tune logo treatment so proof still feels credible.",
+      "evidence": {}
+    },
+    {
+      "id": "generic_footer",
+      "name": "Footer has four identical link columns",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Shape footer navigation around real product priorities.",
+      "evidence": {}
+    },
+    {
+      "id": "dynamic_injected_styles",
+      "name": "Inline style values appear dynamically injected at runtime",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No dynamic injected styles detected.",
+      "fix": "Move repeated gradients, blur, or opacity decisions into stable CSS or document the runtime injection.",
+      "evidence": {
+        "dynamicStyleInjectionCount": 0
+      }
+    },
+    {
+      "id": "no_shadow_system",
+      "name": "No layered elevation system (all flat or one glow)",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Introduce layered elevation and subtle shadows for hierarchy.",
+      "evidence": {}
+    },
+    {
+      "id": "card_padding_inconsistent",
+      "name": "Internal card padding varies across similar cards",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Standardize card padding via tokens.",
+      "evidence": {}
+    },
+    {
+      "id": "no_semantic_html",
+      "name": "Interactive elements use div/span instead of semantic tags",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Use semantic elements like button/nav/main/section.",
+      "evidence": {}
+    },
+    {
+      "id": "z_index_magic_numbers",
+      "name": "Computed stacking contexts use arbitrary magic numbers",
+      "tier": 3,
+      "bucket": "origin",
+      "weight": 4.5,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Refactor stacking contexts to use a scale or tokens.",
+      "evidence": {}
+    },
+    {
+      "id": "no_reduced_motion",
+      "name": "Animations without prefers-reduced-motion handling",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Respect prefers-reduced-motion for nonessential animations.",
+      "evidence": {}
+    },
+    {
+      "id": "image_no_aspect_ratio",
+      "name": "Images have no aspect-ratio set",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Set aspect-ratio or intrinsic size to avoid layout shift.",
+      "evidence": {}
+    },
+    {
+      "id": "stock_image_pattern",
+      "name": "Images match Unsplash/stock patterns",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Prefer original product/team/customer imagery.",
+      "evidence": {}
+    },
+    {
+      "id": "color_contrast_borderline",
+      "name": "Contrast passes but is borderline and feels wrong",
+      "tier": 3,
+      "bucket": "polish",
+      "weight": 3.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Increase contrast and tune surface hierarchy.",
+      "evidence": {}
+    },
+    {
+      "id": "missing_focus_states",
+      "name": "No focus states on inputs",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No inputs found.",
+      "fix": "Add visible focus rings with accessible contrast.",
+      "evidence": {}
+    },
+    {
+      "id": "placeholder_only_labels",
+      "name": "Placeholder disappears on focus",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Placeholder-only labels not detected.",
+      "fix": "Use persistent labels or floating labels.",
+      "evidence": {
+        "placeholder_only": 0,
+        "inputs": 0
+      }
+    },
+    {
+      "id": "missing_active_state",
+      "name": "Button has no active/pressed state",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No buttons found.",
+      "fix": "Add :active scale, brightness, or pressed-state feedback.",
+      "evidence": {}
+    },
+    {
+      "id": "tight_body_line_height",
+      "name": "Body copy line-height too tight",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Body line-height is not too tight.",
+      "fix": "Set body copy line-height around 1.6 to 1.75.",
+      "evidence": {
+        "line_height_ratio": 0.0
+      }
+    },
+    {
+      "id": "uppercase_no_tracking",
+      "name": "Uppercase labels have zero letter spacing",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Uppercase tracking issue not detected.",
+      "fix": "Add letter-spacing to uppercase labels.",
+      "evidence": {
+        "uppercase_labels": 0,
+        "cramped": 0
+      }
+    },
+    {
+      "id": "bad_reading_width",
+      "name": "Reading width too wide or narrow",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Reading widths are not obviously bad.",
+      "fix": "Constrain paragraph measure to comfortable line lengths.",
+      "evidence": {
+        "widths": []
+      }
+    },
+    {
+      "id": "missing_transitions",
+      "name": "No transition on theme/state changes",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No interactive elements found.",
+      "fix": "Add transitions to interactive state changes.",
+      "evidence": {}
+    },
+    {
+      "id": "no_nav_active",
+      "name": "Nav has no active/current indicator",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Nav active-state issue not confirmed.",
+      "fix": "Add active state for the current route or section.",
+      "evidence": {
+        "nav_links": 0,
+        "active": 0
+      }
+    },
+    {
+      "id": "linear_animations",
+      "name": "Animations are linear",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No linear animation timing detected.",
+      "fix": "Use a custom cubic-bezier easing curve.",
+      "evidence": {}
+    },
+    {
+      "id": "default_scrollbar",
+      "name": "Scrollbar is browser default",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Style scrollbars when they are visible in the product surface.",
+      "evidence": {}
+    },
+    {
+      "id": "default_selection",
+      "name": "Selection color is browser default blue",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add branded ::selection colors.",
+      "evidence": {}
+    },
+    {
+      "id": "no_empty_states",
+      "name": "No empty state design",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Design empty states for data-driven components.",
+      "evidence": {}
+    },
+    {
+      "id": "native_title_tooltips",
+      "name": "Tooltips use native title attribute",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No native title tooltips detected.",
+      "fix": "Replace title-only tooltips with accessible custom tooltips.",
+      "evidence": {
+        "count": 0
+      }
+    },
+    {
+      "id": "no_fluid_type",
+      "name": "Font size does not scale on mobile",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Fluid type hints detected.",
+      "fix": "Use responsive type tokens or clamp().",
+      "evidence": {}
+    },
+    {
+      "id": "weak_disabled_states",
+      "name": "Disabled states are just opacity",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Weak disabled-state pattern not detected.",
+      "fix": "Define disabled color, cursor, and interaction behavior.",
+      "evidence": {
+        "disabled": 0,
+        "weak": 0
+      }
+    },
+    {
+      "id": "poor_alt_text",
+      "name": "Images have no meaningful alt text",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "No images found.",
+      "fix": "Write useful alt text or mark decorative images empty.",
+      "evidence": {}
+    },
+    {
+      "id": "link_underline_static",
+      "name": "Link underlines always on or off",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Not enough links to judge underline behavior.",
+      "fix": "Add a link hover/focus underline transition.",
+      "evidence": {}
+    },
+    {
+      "id": "no_custom_404",
+      "name": "No custom 404 page",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add a branded 404 route.",
+      "evidence": {}
+    },
+    {
+      "id": "unconstrained_paragraphs",
+      "name": "Paragraph lines too long",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Paragraphs appear constrained.",
+      "fix": "Constrain paragraph max-width.",
+      "evidence": {
+        "long_widths": []
+      }
+    },
+    {
+      "id": "no_favicon",
+      "name": "No favicon",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": true,
+      "confidence": 0.9,
+      "reason": "No favicon link was found.",
+      "fix": "Add a real favicon and app icons.",
+      "evidence": {}
+    },
+    {
+      "id": "modal_focus_not_trapped",
+      "name": "Modals do not trap focus",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Use a modal primitive that traps focus.",
+      "evidence": {}
+    },
+    {
+      "id": "no_page_transition",
+      "name": "No page transition between routes",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add route transitions only where they improve continuity.",
+      "evidence": {}
+    },
+    {
+      "id": "autofill_dark_breaks",
+      "name": "Input autofill breaks dark mode",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Override webkit autofill colors for dark inputs.",
+      "evidence": {}
+    },
+    {
+      "id": "no_word_break",
+      "name": "Long words and URLs overflow on narrow viewports",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add word-break/overflow-wrap rules.",
+      "evidence": {}
+    },
+    {
+      "id": "border_color_hardcoded",
+      "name": "Border colors hardcoded hex values",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Use CSS variables or opacity tokens for borders.",
+      "evidence": {}
+    },
+    {
+      "id": "body_bg_not_extended",
+      "name": "Background color stops at content end",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Extend background to full viewport height.",
+      "evidence": {}
+    },
+    {
+      "id": "no_print_styles",
+      "name": "No @media print styles",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add print-specific style rules.",
+      "evidence": {}
+    },
+    {
+      "id": "missing_lang_attribute",
+      "name": "HTML missing lang attribute",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add a lang attribute to the html element.",
+      "evidence": {}
+    },
+    {
+      "id": "no_skip_link",
+      "name": "No skip-to-content link for keyboard users",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add an accessible skip-link.",
+      "evidence": {}
+    },
+    {
+      "id": "icon_only_buttons_no_label",
+      "name": "Icon-only buttons missing aria-label",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Provide aria-label or visible text for icon buttons.",
+      "evidence": {}
+    },
+    {
+      "id": "input_no_autocomplete",
+      "name": "Form inputs missing autocomplete attributes",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add autocomplete attributes.",
+      "evidence": {}
+    },
+    {
+      "id": "missing_error_states",
+      "name": "Form fields show no error state",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add visual and textual error states.",
+      "evidence": {}
+    },
+    {
+      "id": "no_success_feedback",
+      "name": "Form submission shows no success confirmation",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Show success messages or confirmations.",
+      "evidence": {}
+    },
+    {
+      "id": "animation_no_will_change",
+      "name": "Animated elements missing will-change hint",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add will-change where appropriate to hint the compositor.",
+      "evidence": {}
+    },
+    {
+      "id": "tap_target_too_small",
+      "name": "Interactive elements under recommended touch size",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Increase tap targets to 44\u00d744px.",
+      "evidence": {}
+    },
+    {
+      "id": "overflow_hidden_clipping",
+      "name": "overflow:hidden clips content unexpectedly on mobile",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Audit and remove destructive overflow rules.",
+      "evidence": {}
+    },
+    {
+      "id": "hardcoded_px_spacing",
+      "name": "Hardcoded px spacing everywhere",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Use rem/spacing tokens instead of px.",
+      "evidence": {}
+    },
+    {
+      "id": "no_focus_visible_distinction",
+      "name": "No distinction between :focus and :focus-visible",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Use :focus-visible to avoid mouse-triggered focus rings.",
+      "evidence": {}
+    },
+    {
+      "id": "image_lazy_load_missing",
+      "name": "Below-fold images missing loading=\"lazy\"",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add lazy loading to below-the-fold images.",
+      "evidence": {}
+    },
+    {
+      "id": "no_viewport_meta",
+      "name": "Missing or incomplete viewport meta tag",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add a responsive viewport meta tag.",
+      "evidence": {}
+    },
+    {
+      "id": "color_scheme_meta_missing",
+      "name": "No color-scheme meta tag",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Add color-scheme meta to hint light/dark UI.",
+      "evidence": {}
+    },
+    {
+      "id": "heading_hierarchy_skipped",
+      "name": "Heading levels skip (e.g. h1 \u2192 h3)",
+      "tier": 4,
+      "bucket": "polish",
+      "weight": 2.0,
+      "flagged": false,
+      "confidence": 0.0,
+      "reason": "Needs LLM or deeper product-specific inspection.",
+      "fix": "Fix the document outline and heading hierarchy.",
+      "evidence": {}
+    }
+  ]
+}

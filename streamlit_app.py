@@ -16,6 +16,28 @@ ROOT = Path(__file__).parent
 REPORTS_DIR = ROOT / "reports" / "webui"
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
+st.set_page_config(
+    page_title="Humanonn: Make your site feel more human",
+    page_icon=str(ROOT / "Humanonn_logo_1.jpg")
+)
+
+st.markdown(
+    """
+    <style>
+    [data-testid="stHeader"] {
+        display: none;
+    }
+    .block-container {
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 
 def _worker_base_url() -> str | None:
     raw = (os.getenv("HUMANONN_WORKER_URL") or "").strip()
@@ -512,6 +534,116 @@ def _live_site_log_lines(report_data: dict | None, scan_mode: str | None = None)
     return lines
 
 
+def _trigger_demo_scan(filename: str):
+    import json
+    cache_file = ROOT / "cache" / filename
+    url_val = ""
+    repo_val = ""
+    if cache_file.exists():
+        try:
+            data = json.loads(cache_file.read_text(encoding="utf-8"))
+            url_val = data.get("url") or ""
+            repo_val = data.get("source_code", {}).get("repo_url") or ""
+        except Exception:
+            pass
+
+    st.session_state["url_input"] = url_val
+    st.session_state["github_repo_input"] = repo_val
+    st.session_state["live_logs"] = []
+    st.session_state["source_logs"] = []
+    st.session_state["scan_report_data"] = None
+    st.session_state["scan_report_path"] = None
+    st.session_state["latest_run_summary"] = None
+    st.session_state["live_scan_running"] = True
+    st.session_state["scan_stop_requested"] = False
+    st.session_state["demo_to_stream"] = filename
+    st.session_state["live_logs_expanded"] = True
+    st.session_state["source_logs_expanded"] = False
+
+
+def _stream_demo_logs(filename: str, placeholder):
+    import time
+    cache_file = ROOT / "cache" / filename
+    if not cache_file.exists():
+        st.error(f"Cache file {filename} not found.")
+        st.session_state["demo_to_stream"] = None
+        return
+
+    try:
+        data = json.loads(cache_file.read_text(encoding="utf-8"))
+    except Exception as e:
+        st.error(f"Failed to load cache: {e}")
+        st.session_state["demo_to_stream"] = None
+        return
+
+    st.session_state["live_scan_running"] = True
+    st.session_state["scan_mode"] = data.get("scan_metadata", {}).get("scan_mode") or "combined"
+    
+    live_logs = data.get("scan_live_log") or []
+    if not isinstance(live_logs, list):
+        live_logs = []
+
+    # Calculate weights to guarantee exactly 4 seconds total delay with 3 distinct pauses
+    total_duration = 4.0
+    N = len(live_logs)
+    
+    idx1, idx2, idx3 = N // 4, N // 2, 3 * N // 4
+    for idx, line in enumerate(live_logs):
+        line_lower = line.lower()
+        if "starting crawl" in line_lower or "launching chromium" in line_lower:
+            idx1 = idx
+            break
+            
+    for idx, line in enumerate(live_logs):
+        if idx <= idx1:
+            continue
+        line_lower = line.lower()
+        if "overview screenshots" in line_lower or "capturing section" in line_lower:
+            idx2 = idx
+            break
+            
+    for idx, line in enumerate(live_logs):
+        if idx <= idx2:
+            continue
+        line_lower = line.lower()
+        if "smart llm scoring" in line_lower or "evaluating rule-based" in line_lower:
+            idx3 = idx
+            break
+
+    # Key lines get higher weight (250) for a ~0.8-1s pause, normal lines get weight 1
+    weights = [1] * N
+    if 0 <= idx1 < N: weights[idx1] = 250
+    if 0 <= idx2 < N: weights[idx2] = 250
+    if 0 <= idx3 < N: weights[idx3] = 250
+    
+    total_weight = sum(weights)
+    
+    st.session_state["live_logs"] = []
+    for idx, line in enumerate(live_logs):
+        st.session_state["live_logs"].append(line)
+        _render_live_logs(placeholder, st.session_state["live_logs"], running=True)
+        
+        sleep_time = (weights[idx] / total_weight) * total_duration
+        time.sleep(sleep_time)
+
+    source_logs = _source_code_log_lines(data, running=False)
+    if source_logs:
+        st.session_state["source_logs"] = source_logs
+        st.session_state["source_logs_expanded"] = True
+
+    st.session_state["scan_report_data"] = data
+    st.session_state["scan_report_path"] = cache_file
+    st.session_state["live_scan_running"] = False
+    
+    score_block = data.get("score") if isinstance(data.get("score"), dict) else {}
+    vibe = data.get("vibe_score") or score_block.get("vibe_score") or data.get("final_score")
+    findings = data.get("findings") or data.get("flagged_issues") or []
+    st.session_state["latest_run_summary"] = f"{data.get('url', '')} — {len(findings)} findings — vibe: {vibe}"
+
+    st.session_state["demo_to_stream"] = None
+    st.rerun()
+
+
 def _render_scan_controls() -> None:
     left, right = st.columns(2)
     mode = _scan_mode(url, github_repo_url)
@@ -532,12 +664,16 @@ def _render_scan_controls() -> None:
     st.caption("*Note: Reload the page when scanning a new/different site to completely clear the current session and logs.*")
 
 
-st.title("Humanonn: Make your site feel more human")
-st.write("Run Humanonn scans from the browser. The server must have the repo and dependencies installed.")
+col_logo, col_title = st.columns([1, 9], vertical_alignment="center")
+with col_logo:
+    st.image(str(ROOT / "Humanonn_logo_1.jpg"), width=80)
+with col_title:
+    st.title("Humanonn: Make your site feel more human")
+    st.write("Run Humanonn scans from the browser. The server must have the repo and dependencies installed.")
 
 _inject_css(REPORTS_DIR / "style.css")
 
-url = st.text_input("URL to scan", "", placeholder="https://example.com")
+url = st.text_input("URL to scan", key="url_input", placeholder="https://example.com")
 
 # Quick client-side site availability check and inline error rendering below the URL input.
 def _quick_site_check(u: str) -> str | None:
@@ -574,38 +710,17 @@ def _quick_site_check(u: str) -> str | None:
     except Exception as exc:
         return f"Could not verify site: {str(exc).splitlines()[0]}"
 
-# show quick site errors found locally or in-flight logs
-site_error = _quick_site_check(url)
+# show quick site errors found locally
 site_errors: list[str] = []
+site_error = _quick_site_check(url)
 if site_error:
     site_errors.append(site_error)
-# also include in-flight or finished scan logs related to site errors
-report_data = st.session_state.get("scan_report_data")
-if report_data:
-    if isinstance(report_data.get("scan_live_log"), list):
-        site_errors.extend([str(x) for x in report_data.get("scan_live_log", []) if x])
-    if isinstance(report_data.get("agent_notes"), list):
-        site_errors.extend([str(x) for x in report_data.get("agent_notes", []) if "site" in str(x).lower() or "http" in str(x).lower()])
-inline_live = [str(x) for x in st.session_state.get("live_logs", []) or []]
-for line in inline_live:
-    if any(tok in line.lower() for tok in ("404", "not found", "access denied", "403", "could not reach", "timed out", "connection refused")):
-        site_errors.append(line)
 
 if site_errors:
-    seen = set()
-    compact: list[str] = []
-    for v in site_errors:
-        s = str(v).strip()
-        if not s or s in seen:
-            continue
-        seen.add(s)
-        compact.append(s)
-        if len(compact) >= 5:
-            break
-    st.markdown(_render_inline_lines(compact), unsafe_allow_html=True)
+    st.markdown(_render_inline_lines(site_errors[:1]), unsafe_allow_html=True)
 github_repo_url = st.text_input(
     "Public GitHub repo URL for source-code scoring (Optional)",
-    "",
+    key="github_repo_input",
     placeholder="https://github.com/owner/repo",
 )
 def _check_site_repo_match(site_url: str, repo_url: str) -> str | None:
@@ -743,63 +858,17 @@ else:
         match_warning = _check_site_repo_match(url, github_repo_url)
         if match_warning:
             st.warning(match_warning)
-# Display server-side scan errors (if any) and the merged final score below the GitHub input.
-report_data = st.session_state.get("scan_report_data")
-server_errors: list[str] = []
 
-# 1) Collect errors already present in the finished report data
-if report_data:
-    if isinstance(report_data.get("scan_code_log"), list):
-        server_errors.extend([str(x) for x in report_data.get("scan_code_log", []) if x and not _should_hide_github_rate_limit_message(str(x))])
-    source_code = report_data.get("source_code") if isinstance(report_data.get("source_code"), dict) else {}
-    if isinstance(source_code.get("scan_log"), list):
-        server_errors.extend([str(x) for x in source_code.get("scan_log", []) if x and not _should_hide_github_rate_limit_message(str(x))])
-    if isinstance(report_data.get("agent_notes"), list):
-        server_errors.extend([str(x) for x in report_data.get("agent_notes", []) if x])
-    for key in ("error", "scan_error", "scan_status"):
-        if report_data.get(key):
-            val = str(report_data.get(key))
-            if _should_hide_github_rate_limit_message(val):
-                continue
-            server_errors.append(val)
 
-# 2) Also surface any in-flight error-like lines from the session log queues so repo-not-found appears fast
-import re
-err_pattern = re.compile(r"(?i)(github|repo|repository).*(not found|was not found|forbidden|rate limit|failed|could not be fetched|not supported|error|missing)")
-inline_logs = []
-inline_logs.extend([str(x) for x in st.session_state.get("source_logs", []) or []])
-inline_logs.extend([str(x) for x in st.session_state.get("live_logs", []) or []])
-for line in inline_logs:
-    if _should_hide_github_rate_limit_message(line):
-        continue
-    if err_pattern.search(line) or "no supported frontend" in line.lower() or "repository not found" in line.lower():
-        server_errors.append(line)
 
-if server_errors:
-    # render up to 10 unique errors in red
-    seen = set()
-    compact: list[str] = []
-    for v in server_errors:
-        s = str(v).strip()
-        if not s or s in seen:
-            continue
-        seen.add(s)
-        compact.append(s)
-        if len(compact) >= 10:
-            break
-    st.markdown(_render_inline_lines(compact), unsafe_allow_html=True)
-
-# Render merged final score (vibe/final_score) in green, plain value only
-merged_score = None
-if report_data:
-    score_block = report_data.get("score") if isinstance(report_data.get("score"), dict) else {}
-    merged_score = report_data.get("vibe_score") or score_block.get("vibe_score") or report_data.get("final_score")
-if merged_score is not None:
-    # Print only the score value in green, no explanation
-    st.markdown(f"<div style='color:#00AA33; font-size:1.3em; margin-top:6px;'>{merged_score}</div>", unsafe_allow_html=True)
 st.session_state.setdefault("live_logs", [])
 st.session_state.setdefault("live_scan_running", False)
 st.session_state.setdefault("scan_stop_requested", False)
+st.session_state.setdefault("live_logs_expanded", False)
+st.session_state.setdefault("source_logs_expanded", False)
+st.session_state.setdefault("demo_to_stream", None)
+st.session_state.setdefault("url_input", "")
+st.session_state.setdefault("github_repo_input", "")
 st.session_state.setdefault("scan_process", None)
 st.session_state.setdefault("scan_output_queue", None)
 st.session_state.setdefault("scan_reader_thread", None)
@@ -821,13 +890,42 @@ if st.session_state["live_scan_running"]:
 
 _render_scan_controls()
 
-download_placeholder = st.empty()
-with st.expander("Show live logs", expanded=False):
-    live_log_box = st.empty()
-    live_logs = _live_site_log_lines(st.session_state.get("scan_report_data") or None, st.session_state.get("scan_mode")) + st.session_state["live_logs"]
-    _render_live_logs(live_log_box, live_logs, st.session_state["live_scan_running"])
+# Custom rounded buttons CSS for demo buttons
+st.markdown(
+    """
+    <style>
+    div.stButton > button {
+        border-radius: 20px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-with st.expander("Show source code scan", expanded=False):
+# 4 site demo buttons horizontally taking full width
+demo_col1, demo_col2, demo_col3, demo_col4 = st.columns(4)
+with demo_col1:
+    st.button("Bolt", use_container_width=True, disabled=st.session_state.get("live_scan_running", False), on_click=_trigger_demo_scan, args=("bolt.json",))
+with demo_col2:
+    st.button("IndiaGov", use_container_width=True, disabled=st.session_state.get("live_scan_running", False), on_click=_trigger_demo_scan, args=("indiagov.json",))
+with demo_col3:
+    st.button("Narayana", use_container_width=True, disabled=st.session_state.get("live_scan_running", False), on_click=_trigger_demo_scan, args=("narayana.json",))
+with demo_col4:
+    st.button("Tabunchai", use_container_width=True, disabled=st.session_state.get("live_scan_running", False), on_click=_trigger_demo_scan, args=("tabunchai.json",))
+
+download_placeholder = st.empty()
+with st.expander("Show live logs", expanded=st.session_state.get("live_logs_expanded", False)):
+    live_log_box = st.empty()
+    if st.session_state.get("demo_to_stream"):
+        _stream_demo_logs(st.session_state["demo_to_stream"], live_log_box)
+    else:
+        live_logs = _live_site_log_lines(st.session_state.get("scan_report_data") or None, st.session_state.get("scan_mode")) + st.session_state["live_logs"]
+        _render_live_logs(live_log_box, live_logs, st.session_state["live_scan_running"])
+
+with st.expander("Show source code scan", expanded=st.session_state.get("source_logs_expanded", False)):
     source_log_box = st.empty()
     source_logs = _source_code_log_lines(st.session_state.get("scan_report_data") or None, st.session_state["live_scan_running"])
     _render_log_window(
@@ -1058,7 +1156,120 @@ with right_col:
     else:
         st.write("No metrics available — run a scan to populate report metrics.")
 
-st.markdown("---")
+st.markdown(
+    """
+    <style>
+    .footer-wrapper {
+        border-top: 1px solid #252935;
+        padding-top: 30px;
+        margin-top: 30px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        width: 100%;
+    }
+    .footer-badges-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+    .footer-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 24px;
+        flex-wrap: wrap;
+    }
+    .footer-link {
+        color: #a3a8b4;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s, filter 0.2s;
+    }
+    .footer-link:hover {
+        transform: translateY(-2px);
+        filter: brightness(1.2);
+    }
+    .footer-link.linkedin:hover { color: #0a66c2; }
+    .footer-link.twitter:hover { color: #e7e9ee; }
+    .footer-link.portfolio:hover { color: #10b981; }
+    .footer-link.github:hover { color: #ffffff; }
+    .footer-link.email:hover { color: #ef4444; }
+    </style>
+    <div class="footer-wrapper">
+        <div class="footer-badges-container">
+            <a href="https://www.producthunt.com/products/humanonn?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-humanonn-2" target="_blank" rel="noopener noreferrer" style="text-decoration: none; display: inline-block;">
+                <img alt="Humanonn - Make your site feel more human | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1163044&amp;theme=dark&amp;t=1780554160653" style="border-radius: 8px; border: 1px solid #252935; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.2)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+            </a>
+            <a href="https://www.indiehackers.com/product/humanonn" target="_blank" rel="noopener noreferrer" style="text-decoration: none; display: inline-block;">
+                <div style="
+                    width: 250px;
+                    height: 54px;
+                    box-sizing: border-box;
+                    border-radius: 8px;
+                    background-color: #0e1927;
+                    border: 1px solid #1f2e41;
+                    display: flex;
+                    align-items: center;
+                    padding: 0 16px;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                    color: #ffffff;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(0,0,0,0.2)'; this.style.borderColor='#ff6d70';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'; this.style.borderColor='#1f2e41';">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="#ff6d70" style="margin-right: 12px; flex-shrink: 0;">
+                        <path d="M2 2h4v20H2zm6 0h4v6H8zm0 14h4v6H8zm6-14h4v20h-4z"/>
+                    </svg>
+                    <div style="display: flex; flex-direction: column; justify-content: center; line-height: 1.1; text-align: left;">
+                        <span style="font-size: 9px; color: #8fa0b5; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Featured on</span>
+                        <span style="font-size: 16px; font-weight: 800; color: #ffffff; letter-spacing: -0.2px;">Indie Hackers</span>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="footer-container">
+            <a class="footer-link linkedin" href="https://www.linkedin.com/in/sai-videsh-ssv/" target="_blank">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.779-1.75-1.75s.784-1.75 1.75-1.75 1.75.779 1.75 1.75-.784 1.75-1.75 1.75zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                LinkedIn
+            </a>
+            <a class="footer-link twitter" href="https://twitter.com/SaiVidesh2" target="_blank">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
+                Twitter
+            </a>
+            <a class="footer-link portfolio" href="https://saividesh.vercel.app/" target="_blank">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                Portfolio
+            </a>
+            <a class="footer-link github" href="https://github.com/Sai-Videsh" target="_blank">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                GitHub
+            </a>
+            <a class="footer-link email" href="mailto:saividesh29@gmail.com">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                Email
+            </a>
+        </div>
+        <div style="
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 15px;
+            text-align: center;
+            font-family: inherit;
+            letter-spacing: 0.5px;
+        ">
+            &copy; 2026 Humanonn&trade;. All rights reserved.
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 if not st.session_state.get("server_notes_footer_shown"):
     st.caption("Server notes: Ensure `.venv` is activated and dependencies installed. Use `python -m playwright install chromium` if needed.")
     st.session_state["server_notes_footer_shown"] = True
